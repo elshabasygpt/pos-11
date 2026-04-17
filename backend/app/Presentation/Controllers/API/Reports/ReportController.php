@@ -158,8 +158,15 @@ class ReportController extends BaseController
         // Totals
         $totalSales = DB::connection('tenant')->table('invoices')->where('status', 'confirmed')->sum('total');
         $totalPurchases = DB::connection('tenant')->table('purchase_invoices')->where('status', 'confirmed')->sum('total');
+        $totalExpenses = DB::connection('tenant')->table('expenses')->sum('amount');
+        
         $totalProducts = DB::connection('tenant')->table('products')->count();
         $totalCustomers = DB::connection('tenant')->table('customers')->count();
+
+        // Financial Distribution (Pie Chart)
+        $assets = DB::connection('tenant')->table('safes')->sum('balance') + DB::connection('tenant')->table('customers')->sum('balance');
+        $liabilities = DB::connection('tenant')->table('suppliers')->sum('balance');
+        $equity = max(0, $assets - $liabilities);
 
         // Top Products (by sales count)
         $topProducts = DB::connection('tenant')->table('invoice_items')
@@ -169,10 +176,9 @@ class ReportController extends BaseController
             ->take(5)
             ->get();
         
-        // Hydrate product names
         foreach ($topProducts as $tp) {
             $prod = DB::connection('tenant')->table('products')->where('id', $tp->product_id)->first();
-            $tp->name = $prod->name ?? 'Deleted Product';
+            $tp->name = $prod->name ?? 'Product ' . substr($tp->product_id, 0, 8);
             $tp->name_ar = $prod->name_ar ?? $tp->name;
         }
 
@@ -192,12 +198,30 @@ class ReportController extends BaseController
             $tc->name_ar = $cust->name_ar ?? $tc->name;
         }
 
+        // Daily sales trend for chart
+        $dailySales = DB::connection('tenant')->table('invoices')
+            ->where('status', 'confirmed')
+            ->where('invoice_date', '>=', now()->subDays(30))
+            ->select(DB::raw('DATE(invoice_date) as date'), DB::raw('SUM(total) as revenue'))
+            ->groupBy('date')
+            ->orderBy('date')
+            ->get();
+
         return $this->success([
             'summary' => [
                 'total_sales' => (float)$totalSales,
                 'total_purchases' => (float)$totalPurchases,
                 'total_products' => $totalProducts,
                 'total_customers' => $totalCustomers,
+                'revenue' => (float)$totalSales,
+                'expenses' => (float)$totalExpenses,
+                'net_income' => (float)($totalSales - $totalPurchases - $totalExpenses),
+            ],
+            'daily_sales' => $dailySales,
+            'accounts_distribution' => [
+                'assets' => (float)$assets,
+                'liabilities' => (float)$liabilities,
+                'equity' => (float)$equity,
             ],
             'top_products' => $topProducts,
             'top_customers' => $topCustomers,

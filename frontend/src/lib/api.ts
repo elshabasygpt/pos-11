@@ -32,7 +32,10 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('auth_token');
-                window.location.href = '/en/login';
+                // Detect current locale from URL path instead of hardcoding
+                const pathParts = window.location.pathname.split('/');
+                const locale = ['ar', 'en'].includes(pathParts[1]) ? pathParts[1] : 'ar';
+                window.location.href = `/${locale}/login`;
             }
         }
         return Promise.reject(error);
@@ -96,31 +99,14 @@ export const treasuryApi = {
     createTransaction: (data: any) => api.post('/treasury/transactions', data),
     transfer: (data: any) => api.post('/treasury/transfer', data),
 
+    // Vouchers (receipt / payment)
+    createVoucher: (data: any) => api.post('/crm/vouchers', data),
+
     // Expenses
     getExpenseCategories: () => api.get('/expenses/categories'),
     createExpenseCategory: (data: any) => api.post('/expenses/categories', data),
     getExpenses: (params?: Record<string, any>) => api.get('/expenses', { params }),
     createExpense: (data: any) => api.post('/expenses', data),
-};
-
-export const hrApi = {
-    // Employees
-    getEmployees: () => api.get('/hr/employees'),
-    createEmployee: (data: any) => api.post('/hr/employees', data),
-
-    // Attendance
-    getAttendances: (params?: Record<string, any>) => api.get('/hr/attendance', { params }),
-    checkIn: (data: any) => api.post('/hr/attendance/check-in', data),
-    checkOut: (data: any) => api.post('/hr/attendance/check-out', data),
-
-    // Leaves
-    getLeaves: () => api.get('/hr/leaves'),
-    applyLeave: (data: any) => api.post('/hr/leaves', data),
-
-    // Payrolls
-    getPayrolls: () => api.get('/hr/payrolls'),
-    generatePayroll: (data: any) => api.post('/hr/payrolls/generate', data),
-    payPayroll: (id: string, data: any) => api.post(`/hr/payrolls/${id}/pay`, data),
 };
 
 export const inventoryApi = {
@@ -167,6 +153,12 @@ export const inventoryApi = {
     getBOM: (productId: string) => api.get(`/inventory/assembly/${productId}`),
     setBOM: (productId: string, data: any) => api.post(`/inventory/assembly/${productId}`, data),
     assemble: (data: any) => api.post('/inventory/assemble', data),
+
+    // Stock Movements
+    getMovements: (params?: Record<string, any>) => api.get('/inventory/movements', { params }),
+    getMovement: (id: string) => api.get(`/inventory/movements/${id}`),
+    createMovement: (data: any) => api.post('/inventory/movements', data),
+    getMovementsSummary: (params?: Record<string, any>) => api.get('/inventory/movements/summary', { params }),
 };
 
 export const crmApi = {
@@ -191,6 +183,16 @@ export const crmApi = {
     importSuppliers: (formData: FormData) => api.post('/crm/suppliers/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(res => res.data),
     getSupplierStatement: (id: string) => api.get(`/crm/suppliers/${id}/statement`).then(res => res.data),
 };
+
+// Convenience aliases used by some pages
+export const customersApi = { getCustomers: crmApi.getCustomers, getCustomer: crmApi.getCustomer, createCustomer: crmApi.createCustomer };
+export const suppliersApi = { getSuppliers: crmApi.getSuppliers, getSupplier: crmApi.getSupplier };
+export const productsApi  = {
+    getProducts: (params?: Record<string, any>) => api.get('/inventory/products', { params }),
+    getProduct: (id: string) => api.get(`/inventory/products/${id}`),
+};
+
+
 
 export const purchasesApi = {
     getInvoices: (params?: Record<string, any>) => api.get('/purchases/invoices', { params }),
@@ -264,4 +266,25 @@ export const reportsApi = {
 export const settingsApi = {
     getSettings: () => api.get('/settings'),
     updateSettings: (data: any) => api.put('/settings', data),
+};
+
+export const hrApi = {
+    getEmployees: (params?: Record<string, any>) => api.get('/hr/employees', { params }),
+    getEmployee: (id: string) => api.get(`/hr/employees/${id}`),
+    createEmployee: (data: any) => api.post('/hr/employees', data),
+    updateEmployee: (id: string, data: any) => api.put(`/hr/employees/${id}`, data),
+    deleteEmployee: (id: string) => api.delete(`/hr/employees/${id}`),
+
+    getAttendance: (params?: Record<string, any>) => api.get('/hr/attendance', { params }),
+    checkIn: (data: { employee_id: string; time?: string; date?: string; notes?: string }) => api.post('/hr/attendance/check-in', data),
+    checkOut: (data: { employee_id: string; time?: string; date?: string; notes?: string }) => api.post('/hr/attendance/check-out', data),
+    updateAttendanceStatus: (id: string, data: { status: string; notes?: string }) => api.put(`/hr/attendance/${id}/status`, data),
+
+    getLeaves: (params?: Record<string, any>) => api.get('/hr/leaves', { params }),
+    applyLeave: (data: any) => api.post('/hr/leaves', data),
+    updateLeaveStatus: (id: string, status: string) => api.put(`/hr/leaves/${id}/status`, { status }),
+
+    getPayrolls: (params?: { month: number; year: number; limit?: number }) => api.get('/hr/payroll', { params }),
+    generatePayroll: (data: { month: number; year: number }) => api.post('/hr/payroll/generate', data),
+    markPayrollAsPaid: (id: string) => api.post(`/hr/payroll/${id}/pay`),
 };

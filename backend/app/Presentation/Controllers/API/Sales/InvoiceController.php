@@ -362,6 +362,58 @@ class InvoiceController extends BaseController
         return $this->success($invoice->toArray());
     }
 
+    public function bulkStore(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'invoices' => 'required|array|min:1',
+        ]);
+
+        $results = ['success' => 0, 'failed' => 0, 'errors' => []];
+
+        foreach ($validated['invoices'] as $index => $invoiceData) {
+            try {
+                $req = new Request();
+                $req->replace($invoiceData);
+                $response = $this->store($req);
+                
+                if ($response->getStatusCode() === 201) {
+                    $results['success']++;
+                } else {
+                    $results['failed']++;
+                    $results['errors'][$index] = json_decode((string) $response->getContent(), true)['message'] ?? 'Unknown error';
+                }
+            } catch (\Exception $e) {
+                $results['failed']++;
+                $results['errors'][$index] = $e->getMessage();
+            }
+        }
+
+        return $this->success($results, 'Bulk sync completed');
+    }
+
+    public function salesReport(Request $request): JsonResponse
+    {
+        $from = $request->query('from', now()->startOfMonth()->toDateString());
+        $to = $request->query('to', now()->endOfMonth()->toDateString());
+
+        $query = InvoiceModel::whereBetween('invoice_date', [$from, $to])
+            ->where('status', '!=', 'cancelled');
+
+        $report = [
+            'total_sales' => (clone $query)->sum('total'),
+            'total_tax' => (clone $query)->sum('vat_amount'),
+            'total_discount' => (clone $query)->sum('discount_amount'),
+            'invoice_count' => (clone $query)->count(),
+            'daily_sales' => (clone $query)
+                ->select(DB::raw('DATE(invoice_date) as date'), DB::raw('SUM(total) as total'))
+                ->groupBy('date')
+                ->orderBy('date')
+                ->get()
+        ];
+
+        return $this->success($report, 'Sales report generated');
+    }
+
     private function processZatca(InvoiceModel $invoice)
     {
         // Try resolving safely. Not critical for core save logic but highly important for KSA.

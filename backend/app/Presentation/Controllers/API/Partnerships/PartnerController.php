@@ -113,6 +113,26 @@ class PartnerController extends BaseController
     }
 
     /**
+     * Remove the specified partner from storage.
+     */
+    public function destroy(string $id): JsonResponse
+    {
+        $partner = PartnerModel::find($id);
+
+        if (!$partner) {
+            return $this->error('Partner not found', 404);
+        }
+
+        if ($partner->total_pending > 0) {
+            return $this->error('Cannot delete partner with pending profits. Please settle accounts first.', 422);
+        }
+
+        $partner->delete();
+
+        return $this->success(null, 'Partner deleted successfully');
+    }
+
+    /**
      * Pay pending profits to a partner (withdrawal)
      */
     public function withdrawProfits(Request $request, string $id): JsonResponse

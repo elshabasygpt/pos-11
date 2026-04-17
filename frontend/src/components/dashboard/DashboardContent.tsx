@@ -87,6 +87,7 @@ export default function DashboardContent({ dict, locale }: DashboardContentProps
     const [topProducts, setTopProducts] = useState<any[]>([]);
     const [topCustomers, setTopCustomers] = useState<any[]>([]);
     const [accountsPie, setAccountsPie] = useState(defaultAccountsPie);
+    const [dailySalesData, setDailySalesData] = useState<any[]>([]);
     const [isDraftingPO, setIsDraftingPO] = useState(false);
 
     useEffect(() => {
@@ -141,6 +142,7 @@ export default function DashboardContent({ dict, locale }: DashboardContentProps
 
                 setTopProducts(kpis.top_products || []);
                 setTopCustomers(kpis.top_customers || []);
+                setDailySalesData(kpis.daily_sales || []);
 
                 // Accounts distribution for pie chart
                 if (kpis.accounts_distribution) {
@@ -322,14 +324,48 @@ export default function DashboardContent({ dict, locale }: DashboardContentProps
 
             {/* Revenue & Expenses Chart + Accounts Distribution */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Removing hardcoded AreaChart to simplify until dynamic ranges are implemented, adding quick visual placeholder */}
-                <div className="lg:col-span-2 glass-card p-6 flex flex-col justify-center items-center text-center text-muted min-h-[300px]">
-                    <h3 className="text-lg font-semibold mb-1 w-full text-start" style={{ color: 'var(--text-heading)' }}>{dict.dashboard.salesChart}</h3>
-                    <p className="text-xs mb-6 w-full text-start" style={{ color: 'var(--text-muted)' }}>
-                        {dict.dashboard.revenue} & {dict.dashboard.expenses}
+                <div className="lg:col-span-2 glass-card p-6 min-h-[300px] flex flex-col">
+                    <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-heading)' }}>{dict.dashboard.salesChart}</h3>
+                    <p className="text-xs mb-6" style={{ color: 'var(--text-muted)' }}>
+                        {dict.dashboard.revenue} (SAR)
                     </p>
-                    <div className="text-4xl mb-4">📈</div>
-                    <p>{isRTL ? 'يتم تجميع البيانات مع دخول الفواتير الجديدة' : 'Gathering data as new invoices are recorded'}</p>
+                    <div className="flex-1 w-full min-h-[200px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={dailySalesData}>
+                                <defs>
+                                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-light)" />
+                                <XAxis 
+                                    dataKey="date" 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{fontSize: 10, fill: 'var(--text-muted)'}}
+                                    tickFormatter={(val) => val.split('-').slice(1).join('/')}
+                                />
+                                <YAxis 
+                                    axisLine={false} 
+                                    tickLine={false} 
+                                    tick={{fontSize: 10, fill: 'var(--text-muted)'}}
+                                />
+                                <Tooltip 
+                                    contentStyle={tooltipStyle}
+                                    formatter={(val) => [formatCurrency(Number(val)), isRTL ? 'الإيرادات' : 'Revenue']}
+                                />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="revenue" 
+                                    stroke="var(--color-primary)" 
+                                    strokeWidth={3}
+                                    fillOpacity={1} 
+                                    fill="url(#colorRev)" 
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
                 </div>
 
                 <div className="glass-card p-6">

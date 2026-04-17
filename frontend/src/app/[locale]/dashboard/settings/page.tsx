@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { settingsApi } from '@/lib/api';
 import ZatcaSettingsSection from '@/components/settings/ZatcaSettingsSection';
+import { useSidebar, type SidebarMode } from '@/providers/SidebarProvider';
 
 export default function SettingsPage() {
     const params = useParams();
@@ -12,6 +13,7 @@ export default function SettingsPage() {
     const [dict, setDict] = useState<any>(null);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
+    const { mode: sidebarMode, setMode: setSidebarMode } = useSidebar();
     const [form, setForm] = useState({
         company_name: '',
         phone: '',
@@ -146,6 +148,90 @@ export default function SettingsPage() {
 
                 {/* ── ZATCA / e-Invoicing ── */}
                 <ZatcaSettingsSection dict={dict} locale={locale as any} />
+
+                {/* ── Sidebar Style ── */}
+                <div className="glass-card p-6">
+                    <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-heading)' }}>
+                        {isRTL ? 'شكل القائمة الجانبية' : 'Sidebar Style'}
+                    </h3>
+                    <p className="text-sm mb-5" style={{ color: 'var(--text-muted)' }}>
+                        {isRTL ? 'اختر طريقة عرض القائمة الجانبية التي تناسبك' : 'Choose how the sidebar looks and behaves'}
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* Full */}
+                        {([
+                            {
+                                key: 'full' as SidebarMode,
+                                icon: (
+                                    <div className="flex gap-1">
+                                        <div className="w-5 h-8 rounded" style={{ background: 'var(--color-primary)', opacity: 0.8 }} />
+                                        <div className="flex-1 h-8 rounded" style={{ background: 'var(--border-default)' }} />
+                                    </div>
+                                ),
+                                titleAr: 'شكل كامل',
+                                titleEn: 'Full Sidebar',
+                                descAr: 'قائمة واسعة تظهر الأيقونات والنصوص دائماً',
+                                descEn: 'Wide sidebar with icons and labels always visible',
+                            },
+                            {
+                                key: 'mini' as SidebarMode,
+                                icon: (
+                                    <div className="flex gap-1">
+                                        <div className="w-2 h-8 rounded" style={{ background: 'var(--color-primary)', opacity: 0.8 }} />
+                                        <div className="flex-1 h-8 rounded" style={{ background: 'var(--border-default)' }} />
+                                    </div>
+                                ),
+                                titleAr: 'شكل مصغّر',
+                                titleEn: 'Mini Sidebar',
+                                descAr: 'قائمة ضيقة بأيقونات فقط لتوفير مساحة أكبر',
+                                descEn: 'Collapsed sidebar with icons only for more screen space',
+                            },
+                            {
+                                key: 'hover' as SidebarMode,
+                                icon: (
+                                    <div className="flex gap-1 items-center">
+                                        <div className="w-2 h-8 rounded" style={{ background: 'var(--color-primary)', opacity: 0.5 }} />
+                                        <svg className="w-4 h-4" style={{ color: 'var(--text-muted)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7" />
+                                        </svg>
+                                        <div className="flex-1 h-8 rounded" style={{ background: 'var(--border-default)' }} />
+                                    </div>
+                                ),
+                                titleAr: 'تمرير الماوس',
+                                titleEn: 'Hover to Expand',
+                                descAr: 'مصغّرة افتراضياً وتتوسع عند التمرير عليها',
+                                descEn: 'Collapsed by default, expands on mouse hover',
+                            },
+                        ] as const).map(opt => (
+                            <button
+                                key={opt.key}
+                                onClick={() => setSidebarMode(opt.key)}
+                                className={`p-4 rounded-xl border-2 text-start transition-all duration-200 hover:scale-[1.02]`}
+                                style={{
+                                    borderColor: sidebarMode === opt.key ? 'var(--color-primary)' : 'var(--border-default)',
+                                    background: sidebarMode === opt.key ? 'rgba(99,102,241,0.07)' : 'var(--bg-surface-secondary)',
+                                }}
+                            >
+                                <div className="mb-3">{opt.icon}</div>
+                                <div className="flex items-center gap-2 mb-1">
+                                    <p className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                        {isRTL ? opt.titleAr : opt.titleEn}
+                                    </p>
+                                    {sidebarMode === opt.key && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                                            style={{ background: 'rgba(99,102,241,0.15)', color: 'var(--color-primary)' }}>
+                                            {isRTL ? 'محدد' : 'Active'}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                                    {isRTL ? opt.descAr : opt.descEn}
+                                </p>
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 {/* ── Language ── */}
                 <div className="glass-card p-6">

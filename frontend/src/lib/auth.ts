@@ -78,8 +78,14 @@ export async function login(
                 phone: rawUser.phone || '',
                 permissions: rawUser.permissions || [],
             };
-            if (data.tenant_id) {
-                localStorage.setItem('tenant_id', data.tenant_id);
+            // Extract tenant_id from multiple possible locations in response
+            const tenantId = data.tenant_id
+                || data.user?.tenant_id
+                || rawUser.tenant_id
+                || data.tenantId
+                || null;
+            if (tenantId) {
+                localStorage.setItem('tenant_id', String(tenantId));
             }
             saveAuth(token, user);
             return { success: true, user };

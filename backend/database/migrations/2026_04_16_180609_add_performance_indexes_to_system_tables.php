@@ -3,68 +3,87 @@
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\DB;
 
 return new class extends Migration
 {
     /**
-     * Run the migrations.
+     * Run the migrations — adds performance indexes safely (skips if already exist).
      */
     public function up(): void
     {
-        // Add indexes to critical tables for performance
-        Schema::connection('tenant')->table('products', function (Blueprint $table) {
-            $table->index('sku');
-            $table->index('barcode');
-        });
+        $this->safeAddIndexes('products', [
+            ['columns' => ['sku'],     'name' => 'products_sku_index'],
+            ['columns' => ['barcode'], 'name' => 'products_barcode_index'],
+        ]);
 
-        Schema::connection('tenant')->table('invoices', function (Blueprint $table) {
-            $table->index('invoice_number');
-            $table->index('customer_id');
-            $table->index('invoice_date');
-        });
+        $this->safeAddIndexes('invoices', [
+            ['columns' => ['invoice_number'], 'name' => 'invoices_invoice_number_index'],
+            ['columns' => ['customer_id'],    'name' => 'invoices_customer_id_index'],
+            ['columns' => ['invoice_date'],   'name' => 'invoices_invoice_date_index'],
+        ]);
 
-        Schema::connection('tenant')->table('purchase_invoices', function (Blueprint $table) {
-            $table->index('invoice_number');
-            $table->index('supplier_id');
-            $table->index('invoice_date');
-        });
+        $this->safeAddIndexes('purchase_invoices', [
+            ['columns' => ['invoice_number'], 'name' => 'purchase_invoices_invoice_number_index'],
+            ['columns' => ['supplier_id'],    'name' => 'purchase_invoices_supplier_id_index'],
+            ['columns' => ['invoice_date'],   'name' => 'purchase_invoices_invoice_date_index'],
+        ]);
 
-        Schema::connection('tenant')->table('customers', function (Blueprint $table) {
-            $table->index('phone');
-        });
+        $this->safeAddIndexes('customers', [
+            ['columns' => ['phone'], 'name' => 'customers_phone_index'],
+        ]);
 
-        Schema::connection('tenant')->table('safe_transactions', function (Blueprint $table) {
-            $table->index('transaction_date');
-            $table->index('safe_id');
-        });
+        $this->safeAddIndexes('safe_transactions', [
+            ['columns' => ['transaction_date'], 'name' => 'safe_transactions_transaction_date_index'],
+            ['columns' => ['safe_id'],          'name' => 'safe_transactions_safe_id_index'],
+        ]);
     }
 
     public function down(): void
     {
         Schema::connection('tenant')->table('products', function (Blueprint $table) {
-            $table->dropIndex(['sku']);
-            $table->dropIndex(['barcode']);
+            $table->dropIndexIfExists('products_sku_index');
+            $table->dropIndexIfExists('products_barcode_index');
         });
 
         Schema::connection('tenant')->table('invoices', function (Blueprint $table) {
-            $table->dropIndex(['invoice_number']);
-            $table->dropIndex(['customer_id']);
-            $table->dropIndex(['invoice_date']);
+            $table->dropIndexIfExists('invoices_invoice_number_index');
+            $table->dropIndexIfExists('invoices_customer_id_index');
+            $table->dropIndexIfExists('invoices_invoice_date_index');
         });
 
         Schema::connection('tenant')->table('purchase_invoices', function (Blueprint $table) {
-            $table->dropIndex(['invoice_number']);
-            $table->dropIndex(['supplier_id']);
-            $table->dropIndex(['invoice_date']);
+            $table->dropIndexIfExists('purchase_invoices_invoice_number_index');
+            $table->dropIndexIfExists('purchase_invoices_supplier_id_index');
+            $table->dropIndexIfExists('purchase_invoices_invoice_date_index');
         });
 
         Schema::connection('tenant')->table('customers', function (Blueprint $table) {
-            $table->dropIndex(['phone']);
+            $table->dropIndexIfExists('customers_phone_index');
         });
 
         Schema::connection('tenant')->table('safe_transactions', function (Blueprint $table) {
-            $table->dropIndex(['transaction_date']);
-            $table->dropIndex(['safe_id']);
+            $table->dropIndexIfExists('safe_transactions_transaction_date_index');
+            $table->dropIndexIfExists('safe_transactions_safe_id_index');
         });
+    }
+
+    // ── Helper: add index only if it doesn't already exist ────────
+    private function safeAddIndexes(string $table, array $indexes): void
+    {
+        Schema::connection('tenant')->table($table, function (Blueprint $blueprint) use ($table, $indexes) {
+            foreach ($indexes as $idx) {
+                if (!$this->indexExists($table, $idx['name'])) {
+                    $blueprint->index($idx['columns'], $idx['name']);
+                }
+            }
+        });
+    }
+
+    private function indexExists(string $table, string $indexName): bool
+    {
+        $result = DB::connection('tenant')
+            ->select("SELECT 1 FROM pg_indexes WHERE tablename = ? AND indexname = ?", [$table, $indexName]);
+        return !empty($result);
     }
 };

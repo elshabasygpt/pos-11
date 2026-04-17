@@ -22,6 +22,11 @@ use App\Presentation\Controllers\API\Partnerships\ProfitDistributionController;
 |
 */
 
+// Dummy login route to prevent 500 RouteNotFoundException on browser visits
+Route::get('/login', function () {
+    return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+})->name('login');
+
 // Public routes (no auth needed)
 Route::prefix('auth')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
@@ -133,6 +138,12 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
         Route::put('/products/{id}', [ProductController::class, 'update']);
         Route::delete('/products/{id}', [ProductController::class, 'destroy']);
 
+        // Stock Movements
+        Route::get('/movements/summary', [\App\Presentation\Controllers\API\Inventory\StockMovementController::class, 'summary']);
+        Route::get('/movements', [\App\Presentation\Controllers\API\Inventory\StockMovementController::class, 'index']);
+        Route::post('/movements', [\App\Presentation\Controllers\API\Inventory\StockMovementController::class, 'store']);
+        Route::get('/movements/{id}', [\App\Presentation\Controllers\API\Inventory\StockMovementController::class, 'show']);
+
         // Adjustments
         Route::get('/adjustments', [\App\Presentation\Controllers\API\Inventory\AdjustmentController::class, 'index']);
         Route::post('/adjustments', [\App\Presentation\Controllers\API\Inventory\AdjustmentController::class, 'store']);
@@ -202,6 +213,24 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
     // Settings
     Route::get('/settings', [\App\Presentation\Controllers\API\SettingsController::class, 'index']);
     Route::put('/settings', [\App\Presentation\Controllers\API\SettingsController::class, 'update']);
+
+    // HR & Payroll
+    Route::prefix('hr')->group(function () {
+        Route::get('/employees', [\App\Presentation\Controllers\API\HR\EmployeeController::class, 'index']);
+        Route::post('/employees', [\App\Presentation\Controllers\API\HR\EmployeeController::class, 'store']);
+        Route::get('/employees/{id}', [\App\Presentation\Controllers\API\HR\EmployeeController::class, 'show']);
+        Route::put('/employees/{id}', [\App\Presentation\Controllers\API\HR\EmployeeController::class, 'update']);
+        Route::delete('/employees/{id}', [\App\Presentation\Controllers\API\HR\EmployeeController::class, 'destroy']);
+
+        Route::get('/attendance', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'index']);
+        Route::post('/attendance/check-in', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'checkIn']);
+        Route::post('/attendance/check-out', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'checkOut']);
+        Route::put('/attendance/{id}/status', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'updateStatus']);
+
+        Route::get('/payroll', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'index']);
+        Route::post('/payroll/generate', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'generate']);
+        Route::post('/payroll/{id}/pay', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'markAsPaid']);
+    });
 
     // AI & Forecasting Analytics
     Route::prefix('analytics')->group(function () {
