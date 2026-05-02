@@ -148,8 +148,8 @@ export default function AIAnalyticsPage() {
                             <label className="block text-sm font-medium mb-1.5">{isRTL ? 'المستودع' : 'Warehouse'}</label>
                             <select value={selectedWarehouse} onChange={e => setSelectedWarehouse(e.target.value)}
                                 className="w-full p-2.5 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-sm">
-                                {warehouses.map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                {warehouses.length === 0 && <option value="">{isRTL ? 'لا توجد مستودعات' : 'No warehouses'}</option>}
+                                {(Array.isArray(warehouses) ? warehouses : []).map((w: any) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                {(!warehouses || !Array.isArray(warehouses) || warehouses.length === 0) && <option value="">{isRTL ? 'لا توجد مستودعات' : 'No warehouses'}</option>}
                             </select>
                         </div>
                         <button onClick={runAutoPO} disabled={loading.autoPO || !selectedWarehouse}
