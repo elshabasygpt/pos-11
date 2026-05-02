@@ -88,22 +88,7 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
         Route::post('/', [\App\Presentation\Controllers\API\Treasury\ExpenseController::class, 'store']);
     });
 
-    // HR
-    Route::prefix('hr')->group(function () {
-        Route::get('/employees', [\App\Presentation\Controllers\API\HR\HrController::class, 'getEmployees']);
-        Route::post('/employees', [\App\Presentation\Controllers\API\HR\HrController::class, 'storeEmployee']);
-        
-        Route::get('/attendance', [\App\Presentation\Controllers\API\HR\HrController::class, 'getAttendances']);
-        Route::post('/attendance/check-in', [\App\Presentation\Controllers\API\HR\HrController::class, 'checkIn']);
-        Route::post('/attendance/check-out', [\App\Presentation\Controllers\API\HR\HrController::class, 'checkOut']);
-        
-        Route::get('/leaves', [\App\Presentation\Controllers\API\HR\HrController::class, 'getLeaves']);
-        Route::post('/leaves', [\App\Presentation\Controllers\API\HR\HrController::class, 'applyLeave']);
-        
-        Route::get('/payrolls', [\App\Presentation\Controllers\API\HR\HrController::class, 'getPayrolls']);
-        Route::post('/payrolls/generate', [\App\Presentation\Controllers\API\HR\HrController::class, 'generatePayroll']);
-        Route::post('/payrolls/{id}/pay', [\App\Presentation\Controllers\API\HR\HrController::class, 'payPayroll']);
-    });
+
     
     // Reports
     Route::prefix('reports')->group(function () {
@@ -112,6 +97,7 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
         Route::get('/accounts', [\App\Presentation\Controllers\API\Reports\ReportController::class, 'getAccountsReport']);
         Route::get('/kpis', [\App\Presentation\Controllers\API\Reports\ReportController::class, 'getGeneralKpis']);
         Route::get('/vat-report', [\App\Presentation\Controllers\API\Reports\ReportController::class, 'getVatReport']);
+        Route::get('/aging', [\App\Presentation\Controllers\API\Reports\ReportController::class, 'getAgingReport']);
     });
     
     // Inventory
@@ -208,11 +194,25 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
         Route::get('/reports/income-statement', [ReportsController::class, 'incomeStatement']);
         Route::get('/reports/balance-sheet', [ReportsController::class, 'balanceSheet']);
         Route::get('/reports/general-ledger', [ReportsController::class, 'generalLedger']);
+        
+        // Fixed Assets
+        Route::apiResource('fixed-assets', \App\Presentation\Controllers\API\Accounting\FixedAssetController::class);
+        Route::post('fixed-assets/{id}/depreciate', [\App\Presentation\Controllers\API\Accounting\FixedAssetController::class, 'calculateDepreciation']);
     });
 
     // Settings
     Route::get('/settings', [\App\Presentation\Controllers\API\SettingsController::class, 'index']);
     Route::put('/settings', [\App\Presentation\Controllers\API\SettingsController::class, 'update']);
+    
+    // Webhooks
+    Route::prefix('webhooks')->group(function () {
+        Route::get('/', [\App\Presentation\Controllers\API\Settings\WebhookController::class, 'index']);
+        Route::post('/', [\App\Presentation\Controllers\API\Settings\WebhookController::class, 'store']);
+        Route::get('/{id}', [\App\Presentation\Controllers\API\Settings\WebhookController::class, 'show']);
+        Route::put('/{id}', [\App\Presentation\Controllers\API\Settings\WebhookController::class, 'update']);
+        Route::delete('/{id}', [\App\Presentation\Controllers\API\Settings\WebhookController::class, 'destroy']);
+        Route::get('/{id}/logs', [\App\Presentation\Controllers\API\Settings\WebhookController::class, 'getLogs']);
+    });
 
     // HR & Payroll
     Route::prefix('hr')->group(function () {
@@ -226,6 +226,9 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
         Route::post('/attendance/check-in', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'checkIn']);
         Route::post('/attendance/check-out', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'checkOut']);
         Route::put('/attendance/{id}/status', [\App\Presentation\Controllers\API\HR\AttendanceController::class, 'updateStatus']);
+
+        Route::get('/leaves', [\App\Presentation\Controllers\API\HR\LeaveController::class, 'index']);
+        Route::post('/leaves', [\App\Presentation\Controllers\API\HR\LeaveController::class, 'store']);
 
         Route::get('/payroll', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'index']);
         Route::post('/payroll/generate', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'generate']);
@@ -243,6 +246,12 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
     Route::prefix('partnerships')->group(function () {
         Route::post('/partners/{id}/enable-portal', [PartnerController::class, 'enablePortal']);
         Route::post('/partners/{id}/send-magic-link', [PartnerController::class, 'sendMagicLink']);
+    });
+
+    // Subscriptions
+    Route::prefix('subscriptions')->group(function () {
+        Route::get('/current', [\App\Presentation\Controllers\API\Subscription\SubscriptionController::class, 'current']);
+        Route::post('/checkout', [\App\Presentation\Controllers\API\Subscription\SubscriptionController::class, 'checkout']);
     });
 });
 

@@ -244,6 +244,15 @@ export const accountingApi = {
         api.get('/accounting/reports/general-ledger', { params }),
 };
 
+export const fixedAssetsApi = {
+    getAssets: () => api.get('/accounting/fixed-assets'),
+    getAsset: (id: string) => api.get(`/accounting/fixed-assets/${id}`),
+    createAsset: (data: any) => api.post('/accounting/fixed-assets', data),
+    updateAsset: (id: string, data: any) => api.put(`/accounting/fixed-assets/${id}`, data),
+    deleteAsset: (id: string) => api.delete(`/accounting/fixed-assets/${id}`),
+    calculateDepreciation: (id: string) => api.post(`/accounting/fixed-assets/${id}/depreciate`),
+};
+
 
 export const analyticsApi = {
     getInventoryForecast: (threshold?: number) => 
@@ -261,11 +270,27 @@ export const reportsApi = {
     getGeneralKpis: () => api.get('/reports/kpis'),
     getVatReport: (params?: { year?: string; period?: 'monthly' | 'quarterly'; value?: string }) => 
         api.get('/reports/vat-report', { params }),
+    getAgingReport: (type: 'receivable' | 'payable') => 
+        api.get('/reports/aging', { params: { type } }),
 };
 
 export const settingsApi = {
     getSettings: () => api.get('/settings'),
     updateSettings: (data: any) => api.put('/settings', data),
+};
+
+export const webhooksApi = {
+    getWebhooks: () => api.get('/webhooks'),
+    getWebhook: (id: string) => api.get(`/webhooks/${id}`),
+    createWebhook: (data: any) => api.post('/webhooks', data),
+    updateWebhook: (id: string, data: any) => api.put(`/webhooks/${id}`, data),
+    deleteWebhook: (id: string) => api.delete(`/webhooks/${id}`),
+    getWebhookLogs: (id: string) => api.get(`/webhooks/${id}/logs`),
+};
+
+export const subscriptionApi = {
+    getCurrent: () => api.get('/subscriptions/current'),
+    checkout: (data: { plan_id: string; payment_method: string }) => api.post('/subscriptions/checkout', data),
 };
 
 export const hrApi = {

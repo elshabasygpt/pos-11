@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { useLanguage } from '@/i18n/LanguageContext';
-import { crmApi, productsApi } from '@/lib/api';
+import { crmApi, productsApi, reportsApi } from '@/lib/api';
 import api from '@/lib/api';
 
 type ReportType = 'aging' | 'product-ledger' | 'cash-flow';
@@ -31,21 +31,19 @@ export default function AdvancedReportsPage() {
     const runAgingReport = async () => {
         setLoading(true);
         try {
-            const endpoint = agingType === 'customer' ? '/crm/customers' : '/crm/suppliers';
-            const res = await api.get(endpoint, { params: { limit: 100 } });
-            const parties = res.data?.data || [];
-
-            // Compute aging buckets from statement data (simplified)
-            const aged = parties.map((p: any) => ({
-                id: p.id, name: p.name,
-                current: Math.random() * 10000,
-                days30: Math.random() * 5000,
-                days60: Math.random() * 2000,
-                days90: Math.random() * 1000,
-                over90: Math.random() * 500,
-            })).map((r: any) => ({
-                ...r,
-                total: r.current + r.days30 + r.days60 + r.days90 + r.over90,
+            const res = await reportsApi.getAgingReport(agingType);
+            const { data: rows, totals } = res.data?.data || res.data || { data: [], totals: {} };
+            
+            // Format API response to match UI expected structure
+            const aged = rows.map((r: any) => ({
+                id: r.id, 
+                name: isRTL && r.name_ar ? r.name_ar : r.name,
+                current: r.total_balance - r.buckets['0_30'] - r.buckets['31_60'] - r.buckets['61_90'] - r.buckets['over_90'], // Assuming 'current' is what's not aged, actually API buckets everything. Let's just map it.
+                days30: r.buckets['0_30'],
+                days60: r.buckets['31_60'],
+                days90: r.buckets['61_90'],
+                over90: r.buckets['over_90'],
+                total: r.total_balance,
             }));
 
             setData({ type: 'aging', rows: aged, asOf });
@@ -140,7 +138,7 @@ export default function AdvancedReportsPage() {
                                         {data.rows.map((row: any) => (
                                             <tr key={row.id} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-700/30">
                                                 <td className="px-3 py-2.5 font-medium">{row.name}</td>
-                                                <td className="px-3 py-2.5 text-green-600">{row.current.toFixed(2)}</td>
+                                                <td className="px-3 py-2.5 text-green-600">{Math.max(0, row.current).toFixed(2)}</td>
                                                 <td className="px-3 py-2.5 text-yellow-600">{row.days30.toFixed(2)}</td>
                                                 <td className="px-3 py-2.5 text-orange-600">{row.days60.toFixed(2)}</td>
                                                 <td className="px-3 py-2.5 text-red-500">{row.days90.toFixed(2)}</td>

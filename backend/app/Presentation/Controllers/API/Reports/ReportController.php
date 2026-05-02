@@ -227,4 +227,140 @@ class ReportController extends BaseController
             'top_customers' => $topCustomers,
         ]);
     }
+
+    /**
+     * Aging Report (أعمار الديون)
+     * Calculates Accounts Receivable (Customers) and Accounts Payable (Suppliers) aging.
+     */
+    public function getAgingReport(Request $request)
+    {
+        $type = $request->query('type', 'receivable'); // 'receivable' or 'payable'
+        
+        $now = now();
+        
+        if ($type === 'receivable') {
+            $entities = DB::connection('tenant')->table('customers')
+                ->where('balance', '>', 0)
+                ->get();
+            
+            $report = [];
+            $totals = ['0_30' => 0, '31_60' => 0, '61_90' => 0, 'over_90' => 0, 'total' => 0];
+
+            foreach ($entities as $customer) {
+                // Fetch credit invoices for this customer ordered by date desc
+                $invoices = DB::connection('tenant')->table('invoices')
+                    ->where('customer_id', $customer->id)
+                    ->where('type', 'credit')
+                    ->where('status', 'confirmed')
+                    ->orderBy('invoice_date', 'asc')
+                    ->get();
+                
+                $balanceRemaining = (float)$customer->balance;
+                
+                $buckets = ['0_30' => 0, '31_60' => 0, '61_90' => 0, 'over_90' => 0];
+
+                // Distribute the balance over the oldest invoices first
+                foreach ($invoices as $invoice) {
+                    if ($balanceRemaining <= 0) break;
+
+                    $amount = min($balanceRemaining, (float)$invoice->total);
+                    $balanceRemaining -= $amount;
+
+                    $days = $now->diffInDays($invoice->invoice_date);
+
+                    if ($days <= 30) {
+                        $buckets['0_30'] += $amount;
+                    } elseif ($days <= 60) {
+                        $buckets['31_60'] += $amount;
+                    } elseif ($days <= 90) {
+                        $buckets['61_90'] += $amount;
+                    } else {
+                        $buckets['over_90'] += $amount;
+                    }
+                }
+
+                // If there's still balance remaining (maybe opening balance without invoices)
+                if ($balanceRemaining > 0) {
+                    $buckets['over_90'] += $balanceRemaining; // Default to oldest
+                }
+
+                $report[] = [
+                    'id' => $customer->id,
+                    'name' => $customer->name,
+                    'name_ar' => $customer->name_ar,
+                    'total_balance' => (float)$customer->balance,
+                    'buckets' => $buckets
+                ];
+
+                $totals['0_30'] += $buckets['0_30'];
+                $totals['31_60'] += $buckets['31_60'];
+                $totals['61_90'] += $buckets['61_90'];
+                $totals['over_90'] += $buckets['over_90'];
+                $totals['total'] += (float)$customer->balance;
+            }
+
+            return $this->success(['data' => $report, 'totals' => $totals, 'type' => 'receivable']);
+        } else {
+            // Payable (Suppliers)
+            $entities = DB::connection('tenant')->table('suppliers')
+                ->where('balance', '>', 0)
+                ->get();
+            
+            $report = [];
+            $totals = ['0_30' => 0, '31_60' => 0, '61_90' => 0, 'over_90' => 0, 'total' => 0];
+
+            foreach ($entities as $supplier) {
+                // Fetch credit invoices for this supplier ordered by date desc
+                $invoices = DB::connection('tenant')->table('purchase_invoices')
+                    ->where('supplier_id', $supplier->id)
+                    ->where('type', 'credit')
+                    ->where('status', 'confirmed')
+                    ->orderBy('invoice_date', 'asc')
+                    ->get();
+                
+                $balanceRemaining = (float)$supplier->balance;
+                
+                $buckets = ['0_30' => 0, '31_60' => 0, '61_90' => 0, 'over_90' => 0];
+
+                foreach ($invoices as $invoice) {
+                    if ($balanceRemaining <= 0) break;
+
+                    $amount = min($balanceRemaining, (float)$invoice->total);
+                    $balanceRemaining -= $amount;
+
+                    $days = $now->diffInDays($invoice->invoice_date);
+
+                    if ($days <= 30) {
+                        $buckets['0_30'] += $amount;
+                    } elseif ($days <= 60) {
+                        $buckets['31_60'] += $amount;
+                    } elseif ($days <= 90) {
+                        $buckets['61_90'] += $amount;
+                    } else {
+                        $buckets['over_90'] += $amount;
+                    }
+                }
+
+                if ($balanceRemaining > 0) {
+                    $buckets['over_90'] += $balanceRemaining; 
+                }
+
+                $report[] = [
+                    'id' => $supplier->id,
+                    'name' => $supplier->name,
+                    'name_ar' => $supplier->name_ar,
+                    'total_balance' => (float)$supplier->balance,
+                    'buckets' => $buckets
+                ];
+
+                $totals['0_30'] += $buckets['0_30'];
+                $totals['31_60'] += $buckets['31_60'];
+                $totals['61_90'] += $buckets['61_90'];
+                $totals['over_90'] += $buckets['over_90'];
+                $totals['total'] += (float)$supplier->balance;
+            }
+
+            return $this->success(['data' => $report, 'totals' => $totals, 'type' => 'payable']);
+        }
+    }
 }

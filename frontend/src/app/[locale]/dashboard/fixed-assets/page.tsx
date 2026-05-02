@@ -1,59 +1,72 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/i18n/LanguageContext';
-
-// Mock data until backend is implemented
-const MOCK_ASSETS = [
-    { id: '1', name: 'Company Vehicle - Toyota', name_ar: 'سيارة شركة - تويوتا', category: 'vehicles', purchase_date: '2023-01-15', cost: 80000, salvage_value: 10000, useful_life_years: 5, accumulated_depreciation: 28000, book_value: 52000, status: 'active' },
-    { id: '2', name: 'Dell Server', name_ar: 'سيرفر ديل', category: 'equipment', purchase_date: '2022-06-01', cost: 15000, salvage_value: 1000, useful_life_years: 3, accumulated_depreciation: 14000, book_value: 1000, status: 'active' },
-    { id: '3', name: 'Office Furniture', name_ar: 'أثاث مكتبي', category: 'furniture', purchase_date: '2021-03-10', cost: 20000, salvage_value: 2000, useful_life_years: 10, accumulated_depreciation: 7200, book_value: 12800, status: 'active' },
-];
+import { fixedAssetsApi } from '@/lib/api';
 
 const CATEGORY_ICONS: Record<string, string> = { vehicles: '🚗', equipment: '💻', furniture: '🪑', buildings: '🏢', land: '🏞️', other: '📦' };
 
-const EMPTY_FORM = { name: '', name_ar: '', category: 'equipment', purchase_date: '', cost: '', salvage_value: '', useful_life_years: '', notes: '' };
+const EMPTY_FORM = { name: '', name_ar: '', category: 'equipment', purchase_date: '', purchase_cost: '', salvage_value: '', useful_life_years: '', notes: '' };
 
 export default function FixedAssetsPage() {
     const { isRTL } = useLanguage();
-    const [assets, setAssets] = useState<any[]>(MOCK_ASSETS);
+    const [assets, setAssets] = useState<any[]>([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [form, setForm] = useState<any>(EMPTY_FORM);
+    const [loading, setLoading] = useState(true);
 
-    const totalCost = assets.reduce((s, a) => s + a.cost, 0);
-    const totalBookValue = assets.reduce((s, a) => s + a.book_value, 0);
-    const totalAccumulated = assets.reduce((s, a) => s + a.accumulated_depreciation, 0);
-
-    const handleSave = (e: React.FormEvent) => {
-        e.preventDefault();
-        const cost = parseFloat(form.cost);
-        const salvage = parseFloat(form.salvage_value || '0');
-        const life = parseInt(form.useful_life_years);
-        const annualDep = (cost - salvage) / life;
-        const monthsOwned = Math.max(0, Math.floor((new Date().getTime() - new Date(form.purchase_date).getTime()) / (1000 * 60 * 60 * 24 * 30)));
-        const accumulated = Math.min(cost - salvage, (annualDep / 12) * monthsOwned);
-        
-        const newAsset = {
-            ...form, id: Date.now().toString(),
-            cost, salvage_value: salvage, useful_life_years: life,
-            accumulated_depreciation: parseFloat(accumulated.toFixed(2)),
-            book_value: parseFloat((cost - accumulated).toFixed(2)),
-            status: 'active',
-        };
-        setAssets(prev => [...prev, newAsset]);
-        setIsModalOpen(false);
-        setForm(EMPTY_FORM);
+    const loadAssets = async () => {
+        setLoading(true);
+        try {
+            const res = await fixedAssetsApi.getAssets();
+            setAssets(res.data?.data || res.data || []);
+        } catch (error) {
+            console.error('Error loading assets:', error);
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const runMonthlyDepreciation = () => {
-        setAssets(prev => prev.map(asset => {
-            if (asset.status !== 'active') return asset;
-            const annual = (asset.cost - asset.salvage_value) / asset.useful_life_years;
-            const monthly = annual / 12;
-            const newAccumulated = Math.min(asset.cost - asset.salvage_value, asset.accumulated_depreciation + monthly);
-            return { ...asset, accumulated_depreciation: parseFloat(newAccumulated.toFixed(2)), book_value: parseFloat((asset.cost - newAccumulated).toFixed(2)) };
-        }));
-        alert(isRTL ? 'تم ترحيل الاستهلاك الشهري بنجاح' : 'Monthly depreciation posted successfully!');
+    useEffect(() => {
+        loadAssets();
+    }, []);
+
+    const totalCost = assets.reduce((s, a) => s + parseFloat(a.purchase_cost || '0'), 0);
+    const totalBookValue = assets.reduce((s, a) => s + parseFloat(a.current_value || '0'), 0);
+    const totalAccumulated = assets.reduce((s, a) => s + parseFloat(a.accumulated_depreciation || '0'), 0);
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await fixedAssetsApi.createAsset({
+                name: form.name,
+                name_ar: form.name_ar,
+                purchase_date: form.purchase_date,
+                purchase_cost: parseFloat(form.purchase_cost),
+                salvage_value: parseFloat(form.salvage_value || '0'),
+                useful_life_years: parseInt(form.useful_life_years),
+                notes: form.notes
+            });
+            setIsModalOpen(false);
+            setForm(EMPTY_FORM);
+            loadAssets();
+        } catch (error: any) {
+            alert(error?.response?.data?.message || 'Error saving asset');
+        }
+    };
+
+    const runMonthlyDepreciation = async () => {
+        let successCount = 0;
+        for (const asset of assets) {
+            if (asset.status === 'active') {
+                try {
+                    await fixedAssetsApi.calculateDepreciation(asset.id);
+                    successCount++;
+                } catch (e) {}
+            }
+        }
+        loadAssets();
+        alert(isRTL ? `تم ترحيل الاستهلاك لعدد ${successCount} أصل بنجاح` : `Depreciation posted for ${successCount} assets successfully!`);
     };
 
     return (
@@ -111,9 +124,17 @@ export default function FixedAssetsPage() {
                             ))}
                         </tr>
                     </thead>
-                    <tbody>
-                        {assets.map(asset => {
-                            const depPercent = ((asset.accumulated_depreciation / (asset.cost - asset.salvage_value)) * 100).toFixed(0);
+                        {loading ? (
+                            <tr><td colSpan={7} className="p-8 text-center text-slate-500">Loading...</td></tr>
+                        ) : assets.length === 0 ? (
+                            <tr><td colSpan={7} className="p-8 text-center text-slate-500">{isRTL ? 'لا توجد أصول مسجلة' : 'No assets found'}</td></tr>
+                        ) : assets.map(asset => {
+                            const cost = parseFloat(asset.purchase_cost || '0');
+                            const salvage = parseFloat(asset.salvage_value || '0');
+                            const accDep = parseFloat(asset.accumulated_depreciation || '0');
+                            const bookVal = parseFloat(asset.current_value || cost);
+                            const depPercent = cost - salvage > 0 ? ((accDep / (cost - salvage)) * 100).toFixed(0) : '0';
+                            
                             return (
                                 <tr key={asset.id} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/30">
                                     <td className={`px-4 py-3 font-medium ${isRTL ? 'text-right' : ''}`}>
@@ -121,14 +142,14 @@ export default function FixedAssetsPage() {
                                     </td>
                                     <td className={`px-4 py-3 ${isRTL ? 'text-right' : ''}`}>
                                         <span className="flex items-center gap-1.5">
-                                            {CATEGORY_ICONS[asset.category] || '📦'}
-                                            <span className="capitalize text-slate-600 dark:text-slate-400">{asset.category}</span>
+                                            {CATEGORY_ICONS[asset.category || 'equipment'] || '📦'}
+                                            <span className="capitalize text-slate-600 dark:text-slate-400">{asset.category || 'Equipment'}</span>
                                         </span>
                                     </td>
                                     <td className={`px-4 py-3 text-slate-500 ${isRTL ? 'text-right' : ''}`}>{asset.purchase_date}</td>
-                                    <td className={`px-4 py-3 font-medium ${isRTL ? 'text-right' : ''}`}>{asset.cost.toFixed(2)}</td>
-                                    <td className={`px-4 py-3 text-red-500 ${isRTL ? 'text-right' : ''}`}>{asset.accumulated_depreciation.toFixed(2)}</td>
-                                    <td className={`px-4 py-3 font-bold text-emerald-600 ${isRTL ? 'text-right' : ''}`}>{asset.book_value.toFixed(2)}</td>
+                                    <td className={`px-4 py-3 font-medium ${isRTL ? 'text-right' : ''}`}>{cost.toFixed(2)}</td>
+                                    <td className={`px-4 py-3 text-red-500 ${isRTL ? 'text-right' : ''}`}>{accDep.toFixed(2)}</td>
+                                    <td className={`px-4 py-3 font-bold text-emerald-600 ${isRTL ? 'text-right' : ''}`}>{bookVal.toFixed(2)}</td>
                                     <td className={`px-4 py-3 ${isRTL ? 'text-right' : ''}`}>
                                         <div className="flex items-center gap-2">
                                             <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-full h-1.5 max-w-[80px]">
@@ -174,7 +195,7 @@ export default function FixedAssetsPage() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">{isRTL ? 'التكلفة الأصلية' : 'Cost'} *</label>
-                                    <input required type="number" min="0" step="0.01" value={form.cost} onChange={e => setForm((f: any) => ({...f, cost: e.target.value}))} className="w-full p-2.5 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-sm"/>
+                                    <input required type="number" min="0" step="0.01" value={form.purchase_cost} onChange={e => setForm((f: any) => ({...f, purchase_cost: e.target.value}))} className="w-full p-2.5 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-sm"/>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium mb-1">{isRTL ? 'قيمة التخريد' : 'Salvage Value'}</label>
@@ -184,11 +205,11 @@ export default function FixedAssetsPage() {
                                     <label className="block text-sm font-medium mb-1">{isRTL ? 'العمر الافتراضي (سنوات)' : 'Useful Life (years)'} *</label>
                                     <input required type="number" min="1" value={form.useful_life_years} onChange={e => setForm((f: any) => ({...f, useful_life_years: e.target.value}))} className="w-full p-2.5 border rounded-lg bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-sm"/>
                                 </div>
-                                {form.cost && form.useful_life_years && (
+                                {form.purchase_cost && form.useful_life_years && (
                                     <div className="col-span-2 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
                                         <p className="text-xs text-amber-700 dark:text-amber-400 font-medium">
                                             {isRTL ? 'قسط الاستهلاك السنوي:' : 'Annual Depreciation:'}&nbsp;
-                                            <strong>{(((parseFloat(form.cost) || 0) - (parseFloat(form.salvage_value) || 0)) / (parseInt(form.useful_life_years) || 1)).toFixed(2)}</strong>
+                                            <strong>{(((parseFloat(form.purchase_cost) || 0) - (parseFloat(form.salvage_value) || 0)) / (parseInt(form.useful_life_years) || 1)).toFixed(2)}</strong>
                                         </p>
                                     </div>
                                 )}
