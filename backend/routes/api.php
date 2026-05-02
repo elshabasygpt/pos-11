@@ -229,6 +229,7 @@ Route::middleware(['tenant', 'subscription.active', 'auth:sanctum', 'throttle:12
 
         Route::get('/leaves', [\App\Presentation\Controllers\API\HR\LeaveController::class, 'index']);
         Route::post('/leaves', [\App\Presentation\Controllers\API\HR\LeaveController::class, 'store']);
+        Route::put('/leaves/{id}/status', [\App\Presentation\Controllers\API\HR\LeaveController::class, 'updateStatus']);
 
         Route::get('/payroll', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'index']);
         Route::post('/payroll/generate', [\App\Presentation\Controllers\API\HR\PayrollController::class, 'generate']);

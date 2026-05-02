@@ -33,4 +33,9 @@ class ProductModel extends BaseModel
     {
         return $this->hasMany(StockMovementModel::class, 'product_id');
     }
+
+    public function units()
+    {
+        return $this->hasMany(ProductUnitModel::class, 'product_id');
+    }
 }

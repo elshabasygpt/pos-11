@@ -14,7 +14,7 @@ import {
     Cell,
     Legend
 } from 'recharts';
-import { salesApi, reportsApi, inventoryApi, usersApi } from '@/lib/api';
+import { salesApi, reportsApi, inventoryApi, usersApi, settingsApi } from '@/lib/api';
 import { exportTableToPDF, exportDetailedReportToPDF } from '@/lib/pdf-export';
 import POSInvoiceModal from './POSInvoiceModal';
 import SalesReturnModal from './SalesReturnModal';
@@ -65,6 +65,7 @@ export default function SalesContent({ dict, locale }: { dict: any; locale: stri
     const [printingInvoice, setPrintingInvoice] = useState<any>(null);
     const [detailedData, setDetailedData] = useState<any>(null);
     const [fetchingDetail, setFetchingDetail] = useState(false);
+    const [sellerInfo, setSellerInfo] = useState<any>(null);
 
     // ── Consumption Data (Performance by Employee) ───────────────────────
     const employeeDistribution = useMemo(() => {
@@ -124,24 +125,32 @@ export default function SalesContent({ dict, locale }: { dict: any; locale: stri
                     });
                 });
 
-                const mockTrend = [
-                    { day: 'Sat', sales: 4000 },
-                    { day: 'Sun', sales: 3000 },
-                    { day: 'Mon', sales: 2000 },
-                    { day: 'Tue', sales: 2780 },
-                    { day: 'Wed', sales: 1890 },
-                    { day: 'Thu', sales: 2390 },
-                    { day: 'Fri', sales: 3490 },
-                ];
+                // Build real trend from kpis.daily_sales if available, else derive from fetched data
+                const dailySalesRaw = kpis.daily_sales || kpis.trend || [];
+                let trendData;
+                if (dailySalesRaw.length > 0) {
+                    trendData = dailySalesRaw.map((d: any) => ({
+                        day: d.date ? new Date(d.date).toLocaleDateString(locale, { weekday: 'short' }) : (d.day || d.label),
+                        sales: Number(d.total || d.sales || d.amount || 0)
+                    }));
+                } else {
+                    // Aggregate from fetched invoices grouped by day
+                    const grouped: Record<string, number> = {};
+                    fetchedData.forEach((inv: any) => {
+                        const dayKey = new Date(inv.invoice_date || inv.created_at).toLocaleDateString(locale, { weekday: 'short' });
+                        grouped[dayKey] = (grouped[dayKey] || 0) + Number(inv.total || 0);
+                    });
+                    trendData = Object.entries(grouped).map(([day, sales]) => ({ day, sales }));
+                }
 
                 setStats({
-                    todaySales: (kpis.summary?.total_sales / 30) || 1240,
-                    avgInvoice: (kpis.summary?.total_sales / (fetchedData.length || 1)) || 450,
-                    pendingAmount: (kpis.summary?.total_sales * 0.15) || 0,
-                    totalTax: (kpis.summary?.total_sales * 0.15) || 0,
+                    todaySales: (kpis.summary?.today_sales ?? kpis.summary?.total_sales / 30) || 0,
+                    avgInvoice: fetchedData.length ? (fetchedData.reduce((s: number, i: any) => s + Number(i.total || 0), 0) / fetchedData.length) : 0,
+                    pendingAmount: kpis.summary?.pending_amount || (kpis.summary?.total_sales * 0.15) || 0,
+                    totalTax: kpis.summary?.total_tax || (kpis.summary?.total_sales * 0.15) || 0,
                     totalProfit: totalProf,
                     totalCommission: totalComm,
-                    trend: mockTrend
+                    trend: trendData
                 });
             }
         } catch (error) {
@@ -157,6 +166,18 @@ export default function SalesContent({ dict, locale }: { dict: any; locale: stri
     useEffect(() => {
         inventoryApi.getWarehouses().then(res => setWarehouses(res.data?.data || []));
         usersApi.getUsers().then(res => setEmployees(res.data?.data || []));
+        // Fetch seller info for invoice printing
+        settingsApi.getSettings().then(res => {
+            const s = res.data?.data || res.data;
+            if (s) setSellerInfo({
+                name: s.company_name || s.store_name || 'My Company',
+                vatNumber: s.vat_number || s.tax_number || '300000000000003',
+                crNumber: s.commercial_register || s.cr_number || '1010000000',
+                address: s.address || '',
+                city: s.city || '',
+                phone: s.phone || s.mobile || '',
+            });
+        }).catch(() => {});
         
         const handleClickOutside = (event: MouseEvent) => {
             if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -194,13 +215,13 @@ export default function SalesContent({ dict, locale }: { dict: any; locale: stri
                     type: (fullInvoice.type === 'tax_invoice' ? 'tax_invoice' : 'simplified') as any,
                     date: fullInvoice.invoice_date,
                     time: new Date(fullInvoice.created_at).toLocaleTimeString('en-GB', { hour12: false }),
-                    seller: {
-                        name: 'Kimo Store POS',
+                    seller: sellerInfo || {
+                        name: 'My Company',
                         vatNumber: '300000000000003',
                         crNumber: '1010000000',
-                        address: 'الرياض، المملكة العربية السعودية',
-                        city: 'الرياض',
-                        phone: '+966 000 000 000',
+                        address: '',
+                        city: '',
+                        phone: '',
                     },
                     buyer: fullInvoice.customer ? {
                         name: fullInvoice.customer.name,

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DeleteConfirmModal, ViewAccountModal, SupplierCategoriesModal, ImportSuppliersModal } from './SupplierModals';
+import { crmApi } from '@/lib/api';
 
 interface Supplier {
     id: string; name: string; nameAr: string; phone: string; email: string; address: string;
@@ -28,7 +29,8 @@ export default function SuppliersContent({ dict, locale }: Props) {
     const isRTL = locale === 'ar';
     const s = dict.suppliers;
 
-    const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
+    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [catFilter, setCatFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -40,6 +42,48 @@ export default function SuppliersContent({ dict, locale }: Props) {
     const [showCategories, setShowCategories] = useState(false);
     const [showImport, setShowImport] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+
+    const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3500);
+    };
+
+    // Fetch data
+    const fetchSuppliers = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await crmApi.getSuppliers();
+            const apiSuppliers = res.data?.data?.data || res.data?.data || [];
+            const formatted = apiSuppliers.map((s: any) => ({
+                id: s.id?.toString() || s.supplier_code,
+                name: s.name || '',
+                nameAr: s.name_ar || s.name || '',
+                phone: s.phone || '',
+                email: s.email || '',
+                address: s.address || '',
+                category: s.category || 'local',
+                paymentType: s.payment_type || 'cash',
+                status: s.status || 'active',
+                totalPurchases: Number(s.total_purchases || 0),
+                balance: Number(s.balance || 0),
+                creditLimit: Number(s.credit_limit || 0),
+                paymentTerms: Number(s.payment_terms || 0),
+                lastOrder: s.last_order || '-',
+                orders: Number(s.orders_count || 0),
+                taxNumber: s.tax_number || '',
+                commercialRegister: s.commercial_register || ''
+            }));
+            setSuppliers(formatted);
+        } catch (error) {
+            console.error('Failed fetching suppliers:', error);
+            showToast(isRTL ? 'فشل تحميل بيانات الموردين' : 'Failed to load suppliers', 'error');
+        }
+        setLoading(false);
+    }, [isRTL]);
+
+    useEffect(() => { fetchSuppliers(); }, [fetchSuppliers]);
 
     const emptyForm = { name: '', nameAr: '', phone: '', email: '', address: '', category: 'local', paymentType: 'cash' as 'cash' | 'credit', creditLimit: 0, paymentTerms: 0, taxNumber: '', commercialRegister: '' };
     const [form, setForm] = useState(emptyForm);
@@ -63,18 +107,51 @@ export default function SuppliersContent({ dict, locale }: Props) {
         setShowAddEdit(true);
     };
 
-    const saveSupplier = useCallback(() => {
+    const saveSupplier = useCallback(async () => {
         if (!form.name && !form.nameAr) return;
-        if (editingSupplier) {
-            setSuppliers(prev => prev.map(su => su.id === editingSupplier.id ? { ...su, name: form.name || su.name, nameAr: form.nameAr || su.nameAr, phone: form.phone, email: form.email, address: form.address, category: form.category, paymentType: form.paymentType, creditLimit: form.paymentType === 'credit' ? form.creditLimit : 0, paymentTerms: form.paymentType === 'credit' ? form.paymentTerms : 0, taxNumber: form.taxNumber, commercialRegister: form.commercialRegister } : su));
-        } else {
-            const newId = `S-${String(suppliers.length + 1).padStart(3, '0')}`;
-            setSuppliers(prev => [{ id: newId, name: form.name || form.nameAr, nameAr: form.nameAr || form.name, phone: form.phone, email: form.email, address: form.address, category: form.category, paymentType: form.paymentType, status: 'active', totalPurchases: 0, balance: 0, creditLimit: form.paymentType === 'credit' ? form.creditLimit : 0, paymentTerms: form.paymentType === 'credit' ? form.paymentTerms : 0, lastOrder: '-', orders: 0, taxNumber: form.taxNumber, commercialRegister: form.commercialRegister }, ...prev]);
+        setSaving(true);
+        const payload = {
+            name: form.name || form.nameAr,
+            name_ar: form.nameAr || form.name,
+            phone: form.phone,
+            email: form.email,
+            address: form.address,
+            category: form.category,
+            payment_type: form.paymentType,
+            credit_limit: form.paymentType === 'credit' ? form.creditLimit : 0,
+            payment_terms: form.paymentType === 'credit' ? form.paymentTerms : 0,
+            tax_number: form.taxNumber,
+            commercial_register: form.commercialRegister,
+        };
+        try {
+            if (editingSupplier) {
+                await crmApi.updateSupplier(editingSupplier.id, payload);
+                showToast(isRTL ? 'تم تحديث بيانات المورد بنجاح ✓' : 'Supplier updated successfully ✓');
+            } else {
+                await crmApi.createSupplier(payload);
+                showToast(isRTL ? 'تم إضافة المورد بنجاح ✓' : 'Supplier added successfully ✓');
+            }
+            setShowAddEdit(false);
+            fetchSuppliers();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || (isRTL ? 'فشل الحفظ' : 'Save failed'), 'error');
+        } finally {
+            setSaving(false);
         }
-        setShowAddEdit(false);
-    }, [form, editingSupplier, suppliers.length]);
+    }, [form, editingSupplier, isRTL, fetchSuppliers]);
 
-    const deleteSupplier = useCallback(() => { if (showDelete) { setSuppliers(prev => prev.filter(su => su.id !== showDelete.id)); setShowDelete(null); } }, [showDelete]);
+    const deleteSupplier = useCallback(async () => {
+        if (!showDelete) return;
+        try {
+            await crmApi.deleteSupplier(showDelete.id);
+            showToast(isRTL ? 'تم حذف المورد بنجاح' : 'Supplier deleted', 'success');
+            setShowDelete(null);
+            fetchSuppliers();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || (isRTL ? 'فشل الحذف' : 'Delete failed'), 'error');
+            setShowDelete(null);
+        }
+    }, [showDelete, isRTL, fetchSuppliers]);
 
     const exportCSV = useCallback(async () => {
         try {
@@ -113,6 +190,12 @@ export default function SuppliersContent({ dict, locale }: Props) {
 
     return (
         <div className="space-y-6 animate-fade-in">
+            {/* Toast */}
+            {toast && (
+                <div className={`fixed bottom-6 ${isRTL ? 'left-6' : 'right-6'} z-[200] px-5 py-3 rounded-2xl shadow-2xl text-white text-sm font-bold flex items-center gap-2 animate-scale-in ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                    {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
+                </div>
+            )}
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
@@ -227,8 +310,8 @@ export default function SuppliersContent({ dict, locale }: Props) {
                         <div className="p-5 space-y-5">
                             <div><h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><span className="w-1.5 h-1.5 rounded-full bg-primary-500" />{s.basicInfo}</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{s.supplierName} (EN)</label><input className="input-field py-2 text-sm" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{s.supplierName} (AR)</label><input className="input-field py-2 text-sm" value={form.nameAr} onChange={e => setForm({ ...form, nameAr: e.target.value })} /></div>
+                                    <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{s.supplierName} (EN)</label><input className="input-field py-2 text-sm" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} dir="ltr" /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{s.phone}</label><input className="input-field py-2 text-sm" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{s.email}</label><input className="input-field py-2 text-sm" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{s.address}</label><input className="input-field py-2 text-sm" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></div>

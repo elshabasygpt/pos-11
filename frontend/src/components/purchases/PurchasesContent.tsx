@@ -233,245 +233,338 @@ export default function PurchasesContent({ dict, locale }: PurchasesContentProps
     };
 
     if (loading) {
-        return <div className="text-center py-20 text-white">Loading...</div>;
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+                <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin"></div>
+                <div className="text-surface-500 dark:text-surface-400 font-medium">{isRTL ? 'جاري التحميل...' : 'Loading...'}</div>
+            </div>
+        );
     }
+
+    // Stats calculations
+    const totalPurchasesValue = invoices.reduce((acc, inv) => acc + Number(inv.total || 0), 0);
+    const pendingInvoices = invoices.filter(inv => inv.status === 'draft' || inv.status === 'pending').length;
+    const totalReturnsValue = returns.reduce((acc, ret) => acc + Number(ret.total_amount || 0), 0);
+
+    const stats = [
+        { label: isRTL ? 'إجمالي المشتريات' : 'Total Purchases', value: formatCurrency(totalPurchasesValue), icon: '🛒', gradient: 'from-blue-500/20 to-blue-600/5', accent: 'text-blue-500' },
+        { label: isRTL ? 'بانتظار الاستلام' : 'Pending Invoices', value: pendingInvoices.toString(), icon: '⏳', gradient: 'from-amber-500/20 to-amber-600/5', accent: 'text-amber-500' },
+        { label: isRTL ? 'إجمالي المرتجعات' : 'Total Returns', value: formatCurrency(totalReturnsValue), icon: '↩️', gradient: 'from-rose-500/20 to-rose-600/5', accent: 'text-rose-500' },
+        { label: isRTL ? 'عدد الموردين' : 'Total Suppliers', value: suppliers.length.toString(), icon: '🏢', gradient: 'from-emerald-500/20 to-emerald-600/5', accent: 'text-emerald-500' },
+    ];
 
     return (
         <div className="space-y-6 animate-fade-in">
-            {/* Header & Tabs */}
+            {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">{isRTL ? 'إدارة المشتريات' : 'Purchases Management'}</h1>
-                    <div className="flex gap-4 mt-3">
-                        <button 
-                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeTab === 'purchases' ? 'bg-primary text-white' : 'text-surface-400 hover:text-white'}`}
-                            style={activeTab === 'purchases' ? {background: 'var(--color-primary)'} : {background: 'var(--bg-surface-hover)'}}
-                            onClick={() => setActiveTab('purchases')}
-                        >
-                            {isRTL ? 'فواتير المشتريات' : 'Purchase Invoices'}
-                        </button>
-                        <button 
-                            className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${activeTab === 'returns' ? 'bg-primary text-white' : 'text-surface-400 hover:text-white'}`}
-                            style={activeTab === 'returns' ? {background: 'var(--color-primary)'} : {background: 'var(--bg-surface-hover)'}}
-                            onClick={() => setActiveTab('returns')}
-                        >
-                            {isRTL ? 'مرتجعات المشتريات' : 'Purchase Returns'}
-                        </button>
-                    </div>
+                    <h1 className="text-2xl font-bold text-surface-900 dark:text-white mb-1">{isRTL ? 'إدارة المشتريات' : 'Purchases Management'}</h1>
+                    <p className="text-sm text-surface-500">{isRTL ? 'إدارة فواتير الشراء، المرتجعات ومتابعة حالة الطلبات' : 'Manage purchase invoices, returns and track order status'}</p>
                 </div>
-
                 <div className="flex gap-3">
                     {activeTab === 'purchases' ? (
-                        <button onClick={() => { setNewOrder(initOrderForm()); setShowOrderModal(true); }} className="btn-primary">
-                            + {isRTL ? 'فاتورة شراء جديدة' : 'New Invoice'}
+                        <button onClick={() => { setNewOrder(initOrderForm()); setShowOrderModal(true); }} className="btn-primary flex items-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
+                            <span className="text-lg">➕</span> {isRTL ? 'فاتورة شراء جديدة' : 'New Invoice'}
                         </button>
                     ) : (
-                        <button onClick={() => { setNewReturn(initReturnForm()); setShowReturnModal(true); }} className="btn-primary">
-                            + {isRTL ? 'تسجيل مرتجع' : 'New Return'}
+                        <button onClick={() => { setNewReturn(initReturnForm()); setShowReturnModal(true); }} className="btn-primary flex items-center gap-2 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all">
+                            <span className="text-lg">➕</span> {isRTL ? 'تسجيل مرتجع' : 'New Return'}
                         </button>
                     )}
                 </div>
             </div>
 
+            {/* Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {stats.map((s, i) => (
+                    <div key={i} className="stat-card relative overflow-hidden bg-white dark:bg-surface-900 rounded-2xl p-5 border border-surface-200 dark:border-surface-800 shadow-sm transition-all hover:shadow-md">
+                        <div className={`absolute inset-0 bg-gradient-to-br ${s.gradient} opacity-40 transition-opacity duration-300 hover:opacity-70`} />
+                        <div className="relative flex items-start justify-between">
+                            <div>
+                                <p className="text-xs font-semibold mb-1 uppercase tracking-wider text-surface-500">{s.label}</p>
+                                <p className={`text-2xl font-black ${s.accent}`}>{s.value}</p>
+                            </div>
+                            <span className="text-3xl opacity-90 drop-shadow-sm">{s.icon}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-2 p-1 bg-surface-100 dark:bg-surface-800/50 rounded-xl w-fit">
+                <button 
+                    className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'purchases' ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'}`}
+                    onClick={() => setActiveTab('purchases')}
+                >
+                    {isRTL ? 'فواتير المشتريات' : 'Purchase Invoices'}
+                </button>
+                <button 
+                    className={`px-5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeTab === 'returns' ? 'bg-white dark:bg-surface-700 text-primary-600 dark:text-primary-400 shadow-sm' : 'text-surface-500 hover:text-surface-700 dark:hover:text-surface-300'}`}
+                    onClick={() => setActiveTab('returns')}
+                >
+                    {isRTL ? 'مرتجعات المشتريات' : 'Purchase Returns'}
+                </button>
+            </div>
+
             {activeTab === 'purchases' && (
                 <>
-                    <div className="flex gap-3 mb-4">
-                        <input
-                            type="text"
-                            placeholder={isRTL ? "بحث رقم أو مورد..." : "Search..."}
-                            className="input-field max-w-xs"
-                            value={searchInvoice}
-                            onChange={e => setSearchInvoice(e.target.value)}
-                        />
-                        <select className="input-field" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                    <div className="flex flex-wrap gap-3 mb-4">
+                        <div className="relative flex-1 min-w-[250px] max-w-sm">
+                            <span className="absolute inset-y-0 start-0 flex items-center ps-3 text-surface-400">🔍</span>
+                            <input
+                                type="text"
+                                placeholder={isRTL ? "بحث برقم الفاتورة أو المورد..." : "Search by invoice or supplier..."}
+                                className="input-field ps-10 w-full"
+                                value={searchInvoice}
+                                onChange={e => setSearchInvoice(e.target.value)}
+                            />
+                        </div>
+                        <select className="select-field w-auto min-w-[150px]" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
                             <option value="all">{isRTL ? 'الكل' : 'All'}</option>
                             <option value="draft">{isRTL ? 'مسودة' : 'Draft'}</option>
                             <option value="confirmed">{isRTL ? 'مؤكد/مستلم' : 'Confirmed'}</option>
                         </select>
                     </div>
-                    <div className="glass-card overflow-x-auto">
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>{isRTL ? 'رقم' : 'Number'}</th>
-                                    <th>{isRTL ? 'المورد' : 'Supplier'}</th>
-                                    <th>{isRTL ? 'التاريخ' : 'Date'}</th>
-                                    <th>{isRTL ? 'الإجمالي' : 'Total'}</th>
-                                    <th>{isRTL ? 'الحالة' : 'Status'}</th>
-                                    <th>{tc.actions || 'Actions'}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredInvoices.map(inv => (
-                                    <tr key={inv.id} className="cursor-pointer" onClick={() => setSelectedOrder(inv)}>
-                                        <td className="text-primary font-mono">{inv.invoice_number}</td>
-                                        <td>{inv.supplier?.name}</td>
-                                        <td className="text-surface-400">{inv.invoice_date?.split('T')[0]}</td>
-                                        <td className="font-semibold text-white">{formatCurrency(inv.total)}</td>
-                                        <td>
-                                            <span className="px-2 py-1 rounded text-xs" style={{ background: statusConfig[inv.status]?.bg, color: statusConfig[inv.status]?.color }}>
-                                                {getStatusLabel(inv.status)}
-                                            </span>
-                                        </td>
-                                        <td onClick={e => e.stopPropagation()}>
-                                            <button onClick={() => setSelectedOrder(inv)} className="text-sm text-primary hover:underline">
-                                                {isRTL ? 'عرض' : 'View'}
-                                            </button>
-                                        </td>
+                    
+                    {filteredInvoices.length === 0 ? (
+                        <div className="glass-card flex flex-col items-center justify-center py-16 px-4 text-center">
+                            <span className="text-5xl mb-4 opacity-50">🛒</span>
+                            <h3 className="text-lg font-bold text-surface-700 dark:text-surface-300 mb-1">{isRTL ? 'لا توجد فواتير' : 'No invoices found'}</h3>
+                            <p className="text-surface-500 max-w-sm">{isRTL ? 'لم يتم العثور على أي فواتير مشتريات تطابق بحثك. يمكنك إضافة فاتورة جديدة.' : 'No purchase invoices matched your criteria. You can create a new invoice.'}</p>
+                        </div>
+                    ) : (
+                        <div className="glass-card overflow-x-auto">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>{isRTL ? 'الرقم' : 'Number'}</th>
+                                        <th>{isRTL ? 'المورد' : 'Supplier'}</th>
+                                        <th>{isRTL ? 'التاريخ' : 'Date'}</th>
+                                        <th>{isRTL ? 'الإجمالي' : 'Total'}</th>
+                                        <th>{isRTL ? 'الحالة' : 'Status'}</th>
+                                        <th className="text-center">{tc.actions || 'Actions'}</th>
                                     </tr>
-                                ))}
-                                {filteredInvoices.length === 0 && (
-                                    <tr><td colSpan={6} className="text-center py-8 text-surface-400">{isRTL ? 'لا توجد فواتير' : 'No invoices'}</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {filteredInvoices.map(inv => (
+                                        <tr key={inv.id} className="cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors" onClick={() => setSelectedOrder(inv)}>
+                                            <td className="text-primary-600 dark:text-primary-400 font-bold font-mono">{inv.invoice_number}</td>
+                                            <td className="font-medium text-surface-900 dark:text-surface-100">{inv.supplier?.name}</td>
+                                            <td className="text-surface-500 font-medium">{inv.invoice_date?.split('T')[0]}</td>
+                                            <td className="font-bold text-surface-900 dark:text-white">{formatCurrency(inv.total)}</td>
+                                            <td>
+                                                <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold border" style={{ background: statusConfig[inv.status]?.bg, color: statusConfig[inv.status]?.color, borderColor: statusConfig[inv.status]?.color + '40' }}>
+                                                    {getStatusLabel(inv.status)}
+                                                </span>
+                                            </td>
+                                            <td className="text-center" onClick={e => e.stopPropagation()}>
+                                                <button onClick={() => setSelectedOrder(inv)} className="btn-icon w-8 h-8 flex items-center justify-center text-primary-500 hover:text-primary-600 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800/50 rounded-lg mx-auto transition-all" title={isRTL ? 'عرض الفاتورة' : 'View Invoice'}>
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </>
             )}
 
             {activeTab === 'returns' && (
                 <>
-                    <div className="flex gap-3 mb-4">
-                        <input
-                            type="text"
-                            placeholder={isRTL ? "بحث رقم أو مورد..." : "Search..."}
-                            className="input-field max-w-xs"
-                            value={searchReturn}
-                            onChange={e => setSearchReturn(e.target.value)}
-                        />
+                    <div className="flex flex-wrap gap-3 mb-4">
+                        <div className="relative flex-1 min-w-[250px] max-w-sm">
+                            <span className="absolute inset-y-0 start-0 flex items-center ps-3 text-surface-400">🔍</span>
+                            <input
+                                type="text"
+                                placeholder={isRTL ? "بحث رقم أو مورد..." : "Search..."}
+                                className="input-field ps-10 w-full"
+                                value={searchReturn}
+                                onChange={e => setSearchReturn(e.target.value)}
+                            />
+                        </div>
                     </div>
-                    <div className="glass-card overflow-x-auto">
-                        <table className="data-table">
-                            <thead>
-                                <tr>
-                                    <th>{isRTL ? 'رقم المرتجع' : 'Return #'}</th>
-                                    <th>{isRTL ? 'الفاتورة' : 'Invoice'}</th>
-                                    <th>{isRTL ? 'المورد' : 'Supplier'}</th>
-                                    <th>{isRTL ? 'التاريخ' : 'Date'}</th>
-                                    <th>{isRTL ? 'الإجمالي' : 'Total'}</th>
-                                    <th>{isRTL ? 'الحالة' : 'Status'}</th>
-                                    <th>{tc.actions || 'Actions'}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {filteredReturns.map(ret => (
-                                    <tr key={ret.id} className="cursor-pointer" onClick={() => setSelectedReturn(ret)}>
-                                        <td className="text-primary font-mono">{ret.number}</td>
-                                        <td>{ret.purchaseInvoice?.number || '-'}</td>
-                                        <td>{ret.supplier?.name}</td>
-                                        <td className="text-surface-400">{ret.issue_date}</td>
-                                        <td className="font-semibold text-white">{formatCurrency(ret.total_amount)}</td>
-                                        <td>
-                                            <span className="px-2 py-1 rounded text-xs" style={{ background: statusConfig[ret.status]?.bg, color: statusConfig[ret.status]?.color }}>
-                                                {getStatusLabel(ret.status)}
-                                            </span>
-                                        </td>
-                                        <td onClick={e => e.stopPropagation()}>
-                                            <button onClick={() => setSelectedReturn(ret)} className="text-sm text-primary hover:underline">
-                                                {isRTL ? 'عرض' : 'View'}
-                                            </button>
-                                        </td>
+                    
+                    {filteredReturns.length === 0 ? (
+                        <div className="glass-card flex flex-col items-center justify-center py-16 px-4 text-center">
+                            <span className="text-5xl mb-4 opacity-50">↩️</span>
+                            <h3 className="text-lg font-bold text-surface-700 dark:text-surface-300 mb-1">{isRTL ? 'لا توجد مرتجعات' : 'No returns found'}</h3>
+                            <p className="text-surface-500 max-w-sm">{isRTL ? 'لم يتم العثور على أي مرتجعات مشتريات تطابق بحثك.' : 'No purchase returns matched your criteria.'}</p>
+                        </div>
+                    ) : (
+                        <div className="glass-card overflow-x-auto">
+                            <table className="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>{isRTL ? 'رقم المرتجع' : 'Return #'}</th>
+                                        <th>{isRTL ? 'الفاتورة الأصلية' : 'Orig. Invoice'}</th>
+                                        <th>{isRTL ? 'المورد' : 'Supplier'}</th>
+                                        <th>{isRTL ? 'التاريخ' : 'Date'}</th>
+                                        <th>{isRTL ? 'الإجمالي' : 'Total'}</th>
+                                        <th>{isRTL ? 'الحالة' : 'Status'}</th>
+                                        <th className="text-center">{tc.actions || 'Actions'}</th>
                                     </tr>
-                                ))}
-                                {filteredReturns.length === 0 && (
-                                    <tr><td colSpan={7} className="text-center py-8 text-surface-400">{isRTL ? 'لا توجد مرتجعات' : 'No returns'}</td></tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    {filteredReturns.map(ret => (
+                                        <tr key={ret.id} className="cursor-pointer hover:bg-surface-50 dark:hover:bg-surface-800/50 transition-colors" onClick={() => setSelectedReturn(ret)}>
+                                            <td className="text-primary-600 dark:text-primary-400 font-bold font-mono">{ret.number}</td>
+                                            <td className="text-surface-500 font-mono text-xs">{ret.purchaseInvoice?.number || '-'}</td>
+                                            <td className="font-medium text-surface-900 dark:text-surface-100">{ret.supplier?.name}</td>
+                                            <td className="text-surface-500 font-medium">{ret.issue_date}</td>
+                                            <td className="font-bold text-surface-900 dark:text-white">{formatCurrency(ret.total_amount)}</td>
+                                            <td>
+                                                <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold border" style={{ background: statusConfig[ret.status]?.bg, color: statusConfig[ret.status]?.color, borderColor: statusConfig[ret.status]?.color + '40' }}>
+                                                    {getStatusLabel(ret.status)}
+                                                </span>
+                                            </td>
+                                            <td className="text-center" onClick={e => e.stopPropagation()}>
+                                                <button onClick={() => setSelectedReturn(ret)} className="btn-icon w-8 h-8 flex items-center justify-center text-primary-500 hover:text-primary-600 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800/50 rounded-lg mx-auto transition-all" title={isRTL ? 'عرض المرتجع' : 'View Return'}>
+                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </>
             )}
 
             {/* --- NEW/EDIT INVOICE MODAL --- */}
             {showOrderModal && newOrder && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => setShowOrderModal(false)}>
-                    <div className="relative w-full max-w-4xl rounded-2xl overflow-hidden glass-card" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
-                        <div className="p-6">
-                            <h2 className="text-xl font-bold mb-4">{newOrder.id ? (isRTL ? 'تعديل الفاتورة' : 'Edit Invoice') : (isRTL ? 'فاتورة جديدة' : 'New Invoice')}</h2>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                                <div>
-                                    <label className="block text-xs mb-1 text-surface-400">{isRTL ? 'المورد' : 'Supplier'}</label>
-                                    <select className="input-field w-full" value={newOrder.supplier_id} onChange={e => setNewOrder({...newOrder, supplier_id: e.target.value})}>
-                                        <option value="">{isRTL ? 'اختر' : 'Select'}</option>
-                                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowOrderModal(false)}>
+                    <div className="relative w-full max-w-5xl rounded-3xl overflow-hidden bg-white dark:bg-surface-900 shadow-2xl border border-surface-200 dark:border-surface-800 flex flex-col" onClick={e => e.stopPropagation()} style={{ maxHeight: '90vh' }}>
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-800/50 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                                <span className="text-2xl">{newOrder.id ? '📝' : '📄'}</span>
+                                {newOrder.id ? (isRTL ? 'تعديل الفاتورة' : 'Edit Invoice') : (isRTL ? 'فاتورة شراء جديدة' : 'New Purchase Invoice')}
+                            </h2>
+                            <button onClick={() => setShowOrderModal(false)} className="btn-icon text-surface-400 hover:text-red-500 bg-white dark:bg-surface-800">✕</button>
+                        </div>
+                        
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'المورد' : 'Supplier'}</label>
+                                    <div className="relative">
+                                        <select className="input-field w-full appearance-none" value={newOrder.supplier_id} onChange={e => setNewOrder({...newOrder, supplier_id: e.target.value})}>
+                                            <option value="">{isRTL ? 'اختر المورد...' : 'Select Supplier...'}</option>
+                                            {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-xs mb-1 text-surface-400">{isRTL ? 'المستودع' : 'Warehouse'}</label>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'المستودع' : 'Warehouse'}</label>
                                     <select className="input-field w-full" value={newOrder.warehouse_id} onChange={e => setNewOrder({...newOrder, warehouse_id: e.target.value})}>
                                         <option value="">{isRTL ? 'اختر المستودع للتموين' : 'Warehouse for stocking'}</option>
                                         {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-xs mb-1 text-surface-400">{isRTL ? 'طريقة الدفع' : 'Payment Type'}</label>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'طريقة الدفع' : 'Payment Type'}</label>
                                     <select className="input-field w-full" value={newOrder.payment_type} onChange={e => setNewOrder({...newOrder, payment_type: e.target.value})}>
                                         <option value="cash">{isRTL ? 'نقدي' : 'Cash'}</option>
                                         <option value="credit">{isRTL ? 'آجل' : 'Credit'}</option>
                                     </select>
                                 </div>
-                                <div>
-                                    <label className="block text-xs mb-1 text-surface-400">{isRTL ? 'التاريخ' : 'Date'}</label>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'التاريخ' : 'Date'}</label>
                                     <input type="date" className="input-field w-full" value={newOrder.issue_date} onChange={e => setNewOrder({...newOrder, issue_date: e.target.value})}/>
                                 </div>
                             </div>
+                            <div className="flex items-center justify-between mb-3 border-b border-surface-200 dark:border-surface-800 pb-2">
+                                <h3 className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                                    <span>📦</span> {isRTL ? 'الأصناف' : 'Items'}
+                                </h3>
+                                <button onClick={() => setNewOrder({...newOrder, items: [...newOrder.items, {product_id:'', qty:1, unit_price:0, tax_rate:15}]})} className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 text-sm font-bold flex items-center gap-1 bg-primary-50 dark:bg-primary-900/30 px-3 py-1.5 rounded-lg transition-colors">
+                                    ➕ {isRTL ? 'إضافة صنف' : 'Add Item'}
+                                </button>
+                            </div>
                             
-                            <h3 className="text-sm font-semibold mb-2">{isRTL ? 'الأصناف' : 'Items'}</h3>
-                            <div className="overflow-x-auto mb-4">
-                                <table className="data-table">
-                                    <thead>
+                            <div className="overflow-x-auto mb-6 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-surface-200 dark:border-surface-800">
+                                <table className="w-full text-sm text-start">
+                                    <thead className="bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700">
                                         <tr>
-                                            <th>{isRTL ? 'الصنف' : 'Product'}</th>
-                                            <th>{isRTL ? 'الكمية' : 'Qty'}</th>
-                                            <th>{isRTL ? 'السعر' : 'Price'}</th>
-                                            <th>{isRTL ? 'الضريبة%' : 'Tax%'}</th>
-                                            <th></th>
+                                            <th className="py-3 px-4 font-bold w-[40%] text-start">{isRTL ? 'الصنف' : 'Product'}</th>
+                                            <th className="py-3 px-4 font-bold text-center">{isRTL ? 'الكمية' : 'Qty'}</th>
+                                            <th className="py-3 px-4 font-bold text-center">{isRTL ? 'السعر (بدون ضريبة)' : 'Price'}</th>
+                                            <th className="py-3 px-4 font-bold text-center">{isRTL ? 'الضريبة%' : 'Tax%'}</th>
+                                            <th className="py-3 px-4 font-bold text-end">{isRTL ? 'الإجمالي' : 'Total'}</th>
+                                            <th className="py-3 px-4 text-center w-12"></th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {newOrder.items.map((it:any, idx:number) => (
-                                            <tr key={idx}>
-                                                <td>
-                                                    <select className="input-field py-1" value={it.product_id} onChange={e => {
+                                    <tbody className="divide-y divide-surface-200 dark:divide-surface-800">
+                                        {newOrder.items.map((it:any, idx:number) => {
+                                            const lineTotal = Number(it.qty) * Number(it.unit_price) * (1 + Number(it.tax_rate) / 100);
+                                            return (
+                                            <tr key={idx} className="hover:bg-white dark:hover:bg-surface-800/50 transition-colors group">
+                                                <td className="py-2 px-3">
+                                                    <select className="input-field py-2 w-full bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900" value={it.product_id} onChange={e => {
                                                         const arr = [...newOrder.items]; arr[idx].product_id = e.target.value; setNewOrder({...newOrder, items: arr});
                                                     }}>
-                                                        <option value="">Select...</option>
+                                                        <option value="">{isRTL ? 'اختر منتج...' : 'Select product...'}</option>
                                                         {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                     </select>
                                                 </td>
-                                                <td>
-                                                    <input type="number" className="input-field py-1 w-20" value={it.qty} onChange={e => {
+                                                <td className="py-2 px-3">
+                                                    <input type="number" min="1" className="input-field py-2 w-24 text-center bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900 mx-auto" value={it.qty} onChange={e => {
                                                         const arr = [...newOrder.items]; arr[idx].qty = e.target.value; setNewOrder({...newOrder, items: arr});
                                                     }}/>
                                                 </td>
-                                                <td>
-                                                    <input type="number" className="input-field py-1 w-28" value={it.unit_price} onChange={e => {
+                                                <td className="py-2 px-3">
+                                                    <input type="number" min="0" step="0.01" className="input-field py-2 w-28 text-center bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900 mx-auto" value={it.unit_price} onChange={e => {
                                                         const arr = [...newOrder.items]; arr[idx].unit_price = e.target.value; setNewOrder({...newOrder, items: arr});
                                                     }}/>
                                                 </td>
-                                                <td>
-                                                    <input type="number" className="input-field py-1 w-20" value={it.tax_rate} onChange={e => {
+                                                <td className="py-2 px-3">
+                                                    <input type="number" min="0" step="1" className="input-field py-2 w-20 text-center bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900 mx-auto" value={it.tax_rate} onChange={e => {
                                                         const arr = [...newOrder.items]; arr[idx].tax_rate = e.target.value; setNewOrder({...newOrder, items: arr});
                                                     }}/>
                                                 </td>
-                                                <td>
-                                                    <button onClick={() => {
-                                                        const arr = newOrder.items.filter((_:any, i:number) => i !== idx); setNewOrder({...newOrder, items: arr});
-                                                    }} className="text-red-400">✕</button>
+                                                <td className="py-2 px-4 text-end font-bold text-primary-600 dark:text-primary-400">
+                                                    {formatCurrency(lineTotal)}
+                                                </td>
+                                                <td className="py-2 px-3 text-center">
+                                                    {newOrder.items.length > 1 && (
+                                                        <button onClick={() => {
+                                                            const arr = newOrder.items.filter((_:any, i:number) => i !== idx); setNewOrder({...newOrder, items: arr});
+                                                        }} className="w-8 h-8 flex items-center justify-center rounded-lg text-surface-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">✕</button>
+                                                    )}
                                                 </td>
                                             </tr>
-                                        ))}
+                                        )})}
                                     </tbody>
                                 </table>
-                                <button onClick={() => setNewOrder({...newOrder, items: [...newOrder.items, {product_id:'', qty:1, unit_price:0, tax_rate:15}]})} className="text-primary text-sm mt-2 font-medium">
-                                    + {isRTL ? 'إضافة صنف' : 'Add Item'}
-                                </button>
                             </div>
+                            
+                            {/* Summary Footer */}
+                            <div className="flex flex-col items-end gap-1 mb-2">
+                                <div className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-4 bg-surface-100 dark:bg-surface-800 px-6 py-3 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm">
+                                    <span>{isRTL ? 'إجمالي الفاتورة المتوقع:' : 'Expected Total:'}</span>
+                                    <span className="text-2xl text-primary-600 dark:text-primary-400">
+                                        {formatCurrency(newOrder.items.reduce((acc:number, it:any) => acc + (Number(it.qty) * Number(it.unit_price) * (1 + Number(it.tax_rate) / 100)), 0))}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
 
-                            <div className="flex gap-4 justify-end mt-8 border-t border-white/10 pt-4">
-                                <button onClick={() => setShowOrderModal(false)} className="px-4 py-2 text-surface-400">{isRTL ? 'إلغاء' : 'Cancel'}</button>
-                                <button onClick={() => handleSaveOrder('draft')} className="px-4 py-2 bg-surface-hover text-surface-200 rounded-lg">{isRTL ? 'حفظ مسودة' : 'Draft'}</button>
-                                <button onClick={() => handleSaveOrder('pending')} className="btn-primary">{isRTL ? 'تأكيد' : 'Confirm'}</button>
+                        {/* Modal Footer Actions */}
+                        <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-800/50 flex flex-col-reverse sm:flex-row gap-3 justify-between items-center">
+                            <button onClick={() => setShowOrderModal(false)} className="w-full sm:w-auto px-6 py-2.5 font-bold text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200 hover:bg-surface-200 dark:hover:bg-surface-700 rounded-xl transition-colors">
+                                {isRTL ? 'إلغاء' : 'Cancel'}
+                            </button>
+                            <div className="flex w-full sm:w-auto gap-3">
+                                <button onClick={() => handleSaveOrder('draft')} className="w-full sm:w-auto px-6 py-2.5 font-bold bg-white dark:bg-surface-700 text-surface-700 dark:text-surface-200 border border-surface-200 dark:border-surface-600 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-600 hover:shadow-sm transition-all shadow-sm">
+                                    {isRTL ? 'حفظ كمسودة' : 'Save as Draft'}
+                                </button>
+                                <button onClick={() => handleSaveOrder('pending')} className="w-full sm:w-auto btn-primary px-8 py-2.5 font-bold shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 hover:-translate-y-0.5 transition-all">
+                                    {isRTL ? 'تأكيد وحفظ' : 'Confirm & Save'}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -535,69 +628,119 @@ export default function PurchasesContent({ dict, locale }: PurchasesContentProps
 
             {/* --- NEW RETURN MODAL --- */}
             {showReturnModal && newReturn && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }} onClick={() => setShowReturnModal(false)}>
-                    <div className="relative w-full max-w-4xl rounded-2xl glass-card p-6" onClick={e=>e.stopPropagation()} style={{ maxHeight: '90vh', overflowY: 'auto' }}>
-                        <h2 className="text-xl font-bold mb-4">{isRTL ? 'تسجيل مرتجع مشتريات' : 'New Purchase Return'}</h2>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-xs mb-1 text-surface-400">{isRTL ? 'المورد' : 'Supplier'}</label>
-                                <select className="input-field w-full" value={newReturn.supplier_id} onChange={e => setNewReturn({...newReturn, supplier_id: e.target.value})}>
-                                    <option value="">{isRTL ? 'اختر' : 'Select'}</option>
-                                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-xs mb-1 text-surface-400">{isRTL ? 'المستودع (لسحب المخزون)' : 'Warehouse (to deduct from)'}</label>
-                                <select className="input-field w-full" value={newReturn.warehouse_id} onChange={e => setNewReturn({...newReturn, warehouse_id: e.target.value})}>
-                                    <option value="">{isRTL ? 'اختر' : 'Select'}</option>
-                                    {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                                </select>
-                            </div>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-surface-900/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowReturnModal(false)}>
+                    <div className="relative w-full max-w-5xl rounded-3xl overflow-hidden bg-white dark:bg-surface-900 shadow-2xl border border-surface-200 dark:border-surface-800 flex flex-col" onClick={e=>e.stopPropagation()} style={{ maxHeight: '90vh' }}>
+                        {/* Modal Header */}
+                        <div className="px-6 py-4 border-b border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-800/50 flex justify-between items-center">
+                            <h2 className="text-xl font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                                <span className="text-2xl">↩️</span>
+                                {isRTL ? 'تسجيل مرتجع مشتريات' : 'New Purchase Return'}
+                            </h2>
+                            <button onClick={() => setShowReturnModal(false)} className="btn-icon text-surface-400 hover:text-red-500 bg-white dark:bg-surface-800">✕</button>
                         </div>
+                        
+                        {/* Modal Body */}
+                        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'المورد' : 'Supplier'}</label>
+                                    <select className="input-field w-full" value={newReturn.supplier_id} onChange={e => setNewReturn({...newReturn, supplier_id: e.target.value})}>
+                                        <option value="">{isRTL ? 'اختر المورد...' : 'Select Supplier...'}</option>
+                                        {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <label className="block text-xs font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'المستودع (لسحب المخزون)' : 'Warehouse (to deduct from)'}</label>
+                                    <select className="input-field w-full" value={newReturn.warehouse_id} onChange={e => setNewReturn({...newReturn, warehouse_id: e.target.value})}>
+                                        <option value="">{isRTL ? 'اختر المستودع...' : 'Select Warehouse...'}</option>
+                                        {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                                    </select>
+                                </div>
+                            </div>
 
-                        <div className="overflow-x-auto mb-4">
-                                <table className="data-table">
-                                    <thead>
+                            <div className="flex items-center justify-between mb-3 border-b border-surface-200 dark:border-surface-800 pb-2">
+                                <h3 className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-2">
+                                    <span>📦</span> {isRTL ? 'الأصناف المسترجعة' : 'Returned Items'}
+                                </h3>
+                                <button onClick={() => setNewReturn({...newReturn, items: [...newReturn.items, {product_id:'', qty:1, unit_price:0, tax_rate:0}]})} className="text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 text-sm font-bold flex items-center gap-1 bg-primary-50 dark:bg-primary-900/30 px-3 py-1.5 rounded-lg transition-colors">
+                                    ➕ {isRTL ? 'إضافة صنف' : 'Add Item'}
+                                </button>
+                            </div>
+
+                            <div className="overflow-x-auto mb-6 bg-surface-50 dark:bg-surface-800/20 rounded-xl border border-surface-200 dark:border-surface-800">
+                                <table className="w-full text-sm text-start">
+                                    <thead className="bg-surface-100 dark:bg-surface-800 text-surface-600 dark:text-surface-400 border-b border-surface-200 dark:border-surface-700">
                                         <tr>
-                                            <th>{isRTL ? 'الصنف' : 'Product'}</th>
-                                            <th>{isRTL ? 'الكمية' : 'Qty'}</th>
-                                            <th>{isRTL ? 'السعر' : 'Price'}</th>
-                                            <th></th>
+                                            <th className="py-3 px-4 font-bold w-[50%] text-start">{isRTL ? 'الصنف' : 'Product'}</th>
+                                            <th className="py-3 px-4 font-bold text-center">{isRTL ? 'الكمية' : 'Qty'}</th>
+                                            <th className="py-3 px-4 font-bold text-center">{isRTL ? 'سعر الاسترجاع' : 'Return Price'}</th>
+                                            <th className="py-3 px-4 font-bold text-end">{isRTL ? 'الإجمالي' : 'Total'}</th>
+                                            <th className="py-3 px-4 text-center w-12"></th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        {newReturn.items.map((it:any, idx:number) => (
-                                            <tr key={idx}>
-                                                <td>
-                                                    <select className="input-field py-1" value={it.product_id} onChange={e => {
+                                    <tbody className="divide-y divide-surface-200 dark:divide-surface-800">
+                                        {newReturn.items.map((it:any, idx:number) => {
+                                            const lineTotal = Number(it.qty) * Number(it.unit_price);
+                                            return (
+                                            <tr key={idx} className="hover:bg-white dark:hover:bg-surface-800/50 transition-colors group">
+                                                <td className="py-2 px-3">
+                                                    <select className="input-field py-2 w-full bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900" value={it.product_id} onChange={e => {
                                                         const arr = [...newReturn.items]; arr[idx].product_id = e.target.value; setNewReturn({...newReturn, items: arr});
                                                     }}>
-                                                        <option value="">Select...</option>
+                                                        <option value="">{isRTL ? 'اختر منتج...' : 'Select product...'}</option>
                                                         {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                                     </select>
                                                 </td>
-                                                <td><input type="number" className="input-field py-1 w-20" value={it.qty} onChange={e => {
+                                                <td className="py-2 px-3">
+                                                    <input type="number" min="1" className="input-field py-2 w-24 text-center bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900 mx-auto" value={it.qty} onChange={e => {
                                                         const arr = [...newReturn.items]; arr[idx].qty = e.target.value; setNewReturn({...newReturn, items: arr});
-                                                }}/></td>
-                                                <td><input type="number" className="input-field py-1 w-28" value={it.unit_price} onChange={e => {
+                                                    }}/>
+                                                </td>
+                                                <td className="py-2 px-3">
+                                                    <input type="number" min="0" step="0.01" className="input-field py-2 w-28 text-center bg-transparent border-transparent hover:border-surface-300 dark:hover:border-surface-600 focus:bg-white dark:focus:bg-surface-900 mx-auto" value={it.unit_price} onChange={e => {
                                                         const arr = [...newReturn.items]; arr[idx].unit_price = e.target.value; setNewReturn({...newReturn, items: arr});
-                                                }}/></td>
-                                                <td><button onClick={() => {
-                                                    const arr = newReturn.items.filter((_:any, i:number) => i !== idx); setNewReturn({...newReturn, items: arr});
-                                                }} className="text-red-400">✕</button></td>
+                                                    }}/>
+                                                </td>
+                                                <td className="py-2 px-4 text-end font-bold text-primary-600 dark:text-primary-400">
+                                                    {formatCurrency(lineTotal)}
+                                                </td>
+                                                <td className="py-2 px-3 text-center">
+                                                    {newReturn.items.length > 1 && (
+                                                        <button onClick={() => {
+                                                            const arr = newReturn.items.filter((_:any, i:number) => i !== idx); setNewReturn({...newReturn, items: arr});
+                                                        }} className="w-8 h-8 flex items-center justify-center rounded-lg text-surface-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100">✕</button>
+                                                    )}
+                                                </td>
                                             </tr>
-                                        ))}
+                                        )})}
                                     </tbody>
                                 </table>
-                                <button onClick={() => setNewReturn({...newReturn, items: [...newReturn.items, {product_id:'', qty:1, unit_price:0, tax_rate:0}]})} className="text-primary text-sm mt-2 font-medium">
-                                    + {isRTL ? 'إضافة صنف مسترجع' : 'Add returned item'}
-                                </button>
+                            </div>
+
+                            {/* Summary Footer */}
+                            <div className="flex flex-col items-end gap-1 mb-2">
+                                <div className="text-lg font-bold text-surface-900 dark:text-white flex items-center gap-4 bg-surface-100 dark:bg-surface-800 px-6 py-3 rounded-xl border border-surface-200 dark:border-surface-700 shadow-sm">
+                                    <span>{isRTL ? 'إجمالي المرتجع:' : 'Expected Return Total:'}</span>
+                                    <span className="text-2xl text-primary-600 dark:text-primary-400">
+                                        {formatCurrency(newReturn.items.reduce((acc:number, it:any) => acc + (Number(it.qty) * Number(it.unit_price)), 0))}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
 
-                        <div className="flex gap-4 justify-end mt-8 border-t border-white/10 pt-4">
-                            <button onClick={() => setShowReturnModal(false)} className="px-4 py-2 text-surface-400">{isRTL ? 'إلغاء' : 'Cancel'}</button>
-                            <button onClick={() => handleSaveReturn('draft')} className="px-4 py-2 bg-surface-hover text-surface-200 rounded-lg">{isRTL ? 'حفظ كمسودة' : 'Draft'}</button>
-                            <button onClick={() => handleSaveReturn('completed')} className="btn-primary">{isRTL ? 'تنفيذ المرتجع (وخصم المخزون)' : 'Complete Return & Deduct'}</button>
+                        {/* Modal Footer Actions */}
+                        <div className="px-6 py-4 border-t border-surface-200 dark:border-surface-800 bg-surface-50 dark:bg-surface-800/50 flex flex-col-reverse sm:flex-row gap-3 justify-between items-center">
+                            <button onClick={() => setShowReturnModal(false)} className="w-full sm:w-auto px-6 py-2.5 font-bold text-surface-500 hover:text-surface-700 dark:text-surface-400 dark:hover:text-surface-200 hover:bg-surface-200 dark:hover:bg-surface-700 rounded-xl transition-colors">
+                                {isRTL ? 'إلغاء' : 'Cancel'}
+                            </button>
+                            <div className="flex w-full sm:w-auto gap-3">
+                                <button onClick={() => handleSaveReturn('draft')} className="w-full sm:w-auto px-6 py-2.5 font-bold bg-white dark:bg-surface-700 text-surface-700 dark:text-surface-200 border border-surface-200 dark:border-surface-600 rounded-xl hover:bg-surface-100 dark:hover:bg-surface-600 hover:shadow-sm transition-all shadow-sm">
+                                    {isRTL ? 'حفظ كمسودة' : 'Save as Draft'}
+                                </button>
+                                <button onClick={() => handleSaveReturn('completed')} className="w-full sm:w-auto btn-primary px-8 py-2.5 font-bold shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 hover:-translate-y-0.5 transition-all">
+                                    {isRTL ? 'تنفيذ المرتجع (وخصم المخزون)' : 'Complete Return & Deduct'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

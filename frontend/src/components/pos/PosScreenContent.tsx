@@ -5,18 +5,13 @@ import InvoicePrintTemplate from '@/components/sales/InvoicePrintTemplate';
 import { useOfflineSync } from '@/hooks/useOfflineSync';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { useBarcodeScanner } from '@/hooks/useBarcodeScanner';
-import { inventoryApi, crmApi } from '@/lib/api';
+import { inventoryApi, crmApi, settingsApi } from '@/lib/api';
 
-// ── Fallback/Mock Products (Used until DB is full) ──
 const FALLBACK_CATEGORIES = [
     { key: 'all', ar: 'الكل', en: 'All' },
-    { key: 'electronics', ar: 'إلكترونيات', en: 'Electronics' },
-    { key: 'phones', ar: 'جوالات', en: 'Phones' },
 ];
 
-const FALLBACK_PRODUCTS = [
-    { id: 1, barcode: '1001', code: 'ELC-001', name: 'Product A', nameAr: 'منتج أ', price: 100, stock_quantity: 10, category: 'electronics', unit: 'قطعة' },
-];
+const FALLBACK_PRODUCTS: any[] = [];
 
 // ── Interfaces ──
 interface CartItem {
@@ -66,6 +61,10 @@ export default function PosScreenContent({ dict, locale }: { dict: any; locale: 
     const [lastInvoiceNum, setLastInvoiceNum] = useState(1);
     const [successMsg, setSuccessMsg] = useState('');
     const [printInvoiceData, setPrintInvoiceData] = useState<any>(null);
+    const [sellerInfo, setSellerInfo] = useState<any>(null);  // loaded from settingsApi
+    const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
+    const [quickAddName, setQuickAddName] = useState('');
+    const [quickAddPhone, setQuickAddPhone] = useState('');
 
     // ── Session Management (Multi-Tabs) ──
     const createEmptySession = (idx: number): PosSession => ({
@@ -109,19 +108,40 @@ export default function PosScreenContent({ dict, locale }: { dict: any; locale: 
     const loadData = async () => {
         try {
             const [prodRes, custRes] = await Promise.all([
-                inventoryApi.getProducts(),
-                crmApi.getCustomers({ limit: 100 })
+                inventoryApi.getProducts({ limit: 1000 }),
+                crmApi.getCustomers({ limit: 1000 })
             ]);
 
-            if (prodRes.data?.data) {
-                setProducts(prodRes.data.data);
-                const cats = Array.from(new Set(prodRes.data.data.map((p: any) => p.category).filter(Boolean)));
+            const fetchedProducts = prodRes.data?.data?.data || prodRes.data?.data;
+            if (fetchedProducts && Array.isArray(fetchedProducts)) {
+                setProducts(fetchedProducts);
+                const cats = Array.from(new Set(fetchedProducts.map((p: any) => p.category).filter(Boolean)));
                 const newCats = [{ key: 'all', ar: 'الكل', en: 'All' }];
                 cats.forEach((c: any) => newCats.push({ key: c, ar: c, en: c }));
                 setCategories(newCats);
             }
-            if (custRes.data?.data) {
-                setAllCustomers(custRes.data.data);
+
+            const fetchedCustomers = custRes.data?.data?.data || custRes.data?.data;
+            if (fetchedCustomers && Array.isArray(fetchedCustomers)) {
+                setAllCustomers(fetchedCustomers);
+            }
+
+            // Load seller info from settings
+            try {
+                const settingsRes = await settingsApi.getSettings();
+                const s = settingsRes.data?.data || settingsRes.data;
+                if (s) {
+                    setSellerInfo({
+                        name: s.company_name || s.store_name || (isRTL ? 'اسم الشركة' : 'My Company'),
+                        vatNumber: s.vat_number || s.tax_number || '',
+                        crNumber: s.commercial_register || s.cr_number || '',
+                        address: s.address || '',
+                        city: s.city || '',
+                        phone: s.phone || s.mobile || '',
+                    });
+                }
+            } catch (e) {
+                console.warn('Settings not loaded, using defaults');
             }
         } catch (e) {
             console.error('Failed to fetch data');
@@ -291,7 +311,7 @@ export default function PosScreenContent({ dict, locale }: { dict: any; locale: 
             type: activeSession.invoiceType as any,
             date: new Date().toISOString().slice(0, 10),
             time: new Date().toTimeString().slice(0, 8),
-            seller: { 
+            seller: sellerInfo || { 
                 name: isRTL ? 'شركتي التجارية' : 'My Trading Company', 
                 vatNumber: '300000000000003', crNumber: '1010000000', 
                 address: '1234 شارع الملك فهد، حي العليا', city: isRTL ? 'الرياض' : 'Riyadh', phone: '+966 11 000 0000' 
@@ -552,10 +572,54 @@ export default function PosScreenContent({ dict, locale }: { dict: any; locale: 
                                     </div>
                                 ))}
                                 <div 
-                                    onClick={() => setShowCustomerResults(false)}
-                                    className="p-2 text-center text-[10px] text-primary-500 font-bold hover:bg-surface-50 cursor-pointer"
+                                    onClick={() => { setShowCustomerResults(false); setShowQuickAddCustomer(true); }}
+                                    className="p-2 text-center text-[10px] text-primary-500 font-bold hover:bg-primary-50 dark:hover:bg-primary-900/20 cursor-pointer flex items-center justify-center gap-1"
                                 >
-                                    {isRTL ? '+ إضافة عميل جديد (سريع)' : '+ Add New Customer (Quick)'}
+                                    <span>+</span> {isRTL ? 'إضافة عميل جديد (سريع)' : 'Add New Customer (Quick)'}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Quick Add Customer Form */}
+                        {showQuickAddCustomer && (
+                            <div className="absolute start-0 end-0 top-full mt-1 bg-white dark:bg-surface-900 border rounded-xl shadow-xl z-50 p-3 space-y-2" style={{ borderColor: 'var(--border-default)' }}>
+                                <p className="text-[10px] font-bold text-surface-500 uppercase tracking-wider">{isRTL ? 'إضافة عميل جديد' : 'Quick Add Customer'}</p>
+                                <input
+                                    type="text"
+                                    placeholder={isRTL ? 'اسم العميل *' : 'Customer Name *'}
+                                    className="input-field w-full text-xs py-2"
+                                    value={quickAddName}
+                                    onChange={e => setQuickAddName(e.target.value)}
+                                    autoFocus
+                                />
+                                <input
+                                    type="text"
+                                    placeholder={isRTL ? 'رقم الجوال' : 'Phone (optional)'}
+                                    className="input-field w-full text-xs py-2"
+                                    value={quickAddPhone}
+                                    onChange={e => setQuickAddPhone(e.target.value)}
+                                />
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={async () => {
+                                            if (!quickAddName.trim()) return;
+                                            try {
+                                                const res = await crmApi.createCustomer({ name: quickAddName, name_ar: quickAddName, phone: quickAddPhone, group: 'retail', payment_type: 'cash' });
+                                                const newCust = res.data?.data || res.data;
+                                                updateActiveSession({ customerName: quickAddName });
+                                                setAllCustomers(prev => [...prev, newCust]);
+                                            } catch {
+                                                updateActiveSession({ customerName: quickAddName });
+                                            }
+                                            setShowQuickAddCustomer(false);
+                                            setQuickAddName('');
+                                            setQuickAddPhone('');
+                                        }}
+                                        className="flex-1 btn-primary text-xs py-1.5"
+                                    >
+                                        {isRTL ? 'حفظ واختيار' : 'Save & Select'}
+                                    </button>
+                                    <button onClick={() => { setShowQuickAddCustomer(false); setQuickAddName(''); setQuickAddPhone(''); }} className="btn-secondary text-xs py-1.5">{isRTL ? 'إلغاء' : 'Cancel'}</button>
                                 </div>
                             </div>
                         )}

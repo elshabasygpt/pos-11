@@ -305,17 +305,52 @@ interface GroupsModalProps {
 export function CustomerGroupsModal({ dict, locale, customers, onClose }: GroupsModalProps) {
     const isRTL = locale === 'ar';
     const c = dict.customers;
-    const groups = [
-        { key: 'vip', label: c.groupVip, icon: '⭐', color: 'from-yellow-500/20 to-amber-600/5', count: customers.filter(c => c.group === 'vip').length },
-        { key: 'wholesale', label: c.groupWholesale, icon: '🏭', color: 'from-blue-500/20 to-cyan-600/5', count: customers.filter(c => c.group === 'wholesale').length },
-        { key: 'retail', label: c.groupRetail, icon: '🏪', color: 'from-green-500/20 to-emerald-600/5', count: customers.filter(c => c.group === 'retail').length },
-        { key: 'individual', label: c.groupIndividual, icon: '👤', color: 'from-purple-500/20 to-violet-600/5', count: customers.filter(c => c.group === 'individual').length },
+    
+    // Find unique custom groups from customers data
+    const defaultGroupKeys = ['vip', 'wholesale', 'retail', 'individual'];
+    const customGroups = customers.reduce((acc, cu) => {
+        if (!defaultGroupKeys.includes(cu.group) && !acc.find((g: string) => g === cu.group)) {
+            acc.push(cu.group);
+        }
+        return acc;
+    }, [] as string[]);
+
+    const initialGroups = [
+        { key: 'vip', label: c.groupVip || 'VIP', icon: '⭐', color: 'from-yellow-500/20 to-amber-600/5' },
+        { key: 'wholesale', label: c.groupWholesale || 'جملة', icon: '🏭', color: 'from-blue-500/20 to-cyan-600/5' },
+        { key: 'retail', label: c.groupRetail || 'قطاعي', icon: '🏪', color: 'from-green-500/20 to-emerald-600/5' },
+        { key: 'individual', label: c.groupIndividual || 'أفراد', icon: '👤', color: 'from-purple-500/20 to-violet-600/5' },
+        ...customGroups.map((grp: string) => ({
+            key: grp, label: grp, icon: '📁', color: 'from-slate-500/20 to-slate-600/5'
+        }))
     ];
 
+    const [groupsList, setGroupsList] = useState(initialGroups);
+    const [isAdding, setIsAdding] = useState(false);
+    const [newGroupName, setNewGroupName] = useState('');
+
+    const handleAddGroup = () => {
+        if (!newGroupName.trim()) return;
+        const newKey = newGroupName.toLowerCase().replace(/\s+/g, '_');
+        if (groupsList.find(g => g.key === newKey || g.label === newGroupName.trim())) {
+            alert(isRTL ? 'المجموعة موجودة مسبقاً' : 'Group already exists');
+            return;
+        }
+        
+        setGroupsList([...groupsList, {
+            key: newKey,
+            label: newGroupName.trim(),
+            icon: '🏷️',
+            color: 'from-indigo-500/20 to-indigo-600/5'
+        }]);
+        setNewGroupName('');
+        setIsAdding(false);
+    };
+
     return (
-        <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-            <div className="modal-content !max-w-lg">
-                <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-default)' }}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && onClose()}>
+            <div className="bg-white dark:bg-surface-900 rounded-2xl w-full max-w-xl max-h-[85vh] overflow-y-auto shadow-2xl animate-scale-in">
+                <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-md z-10" style={{ borderColor: 'var(--border-default)' }}>
                     <div className="flex items-center gap-2">
                         <span className="text-xl">🏷️</span>
                         <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{c.customerGroups}</h2>
@@ -324,18 +359,54 @@ export function CustomerGroupsModal({ dict, locale, customers, onClose }: Groups
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                 </div>
-                <div className="p-5 grid grid-cols-2 gap-4">
-                    {groups.map(g => (
-                        <div key={g.key} className={`glass-card p-5 text-center relative overflow-hidden`}>
-                            <div className={`absolute inset-0 bg-gradient-to-br ${g.color} opacity-50`} />
-                            <div className="relative">
-                                <span className="text-3xl block mb-2">{g.icon}</span>
-                                <p className="font-bold text-lg" style={{ color: 'var(--text-primary)' }}>{g.label}</p>
-                                <p className="text-2xl font-bold text-primary-400 mt-1">{g.count}</p>
-                                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{isRTL ? 'عميل' : 'customers'}</p>
+                
+                <div className="p-5">
+                    {/* Add Group Action */}
+                    <div className="mb-5">
+                        {!isAdding ? (
+                            <button 
+                                onClick={() => setIsAdding(true)} 
+                                className="w-full py-3 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 text-sm font-medium transition-all hover:border-primary-500 hover:bg-primary-500/5 text-primary-500"
+                                style={{ borderColor: 'var(--border-default)' }}
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                {isRTL ? 'إضافة مجموعة جديدة' : 'Add New Group'}
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-2 animate-fade-in bg-primary-500/5 p-3 rounded-xl border border-primary-500/20">
+                                <input 
+                                    type="text" 
+                                    className="input-field py-2 text-sm flex-1 bg-white dark:bg-surface-950" 
+                                    placeholder={isRTL ? 'اسم المجموعة...' : 'Group name...'} 
+                                    value={newGroupName} 
+                                    onChange={e => setNewGroupName(e.target.value)}
+                                    autoFocus
+                                    onKeyDown={e => e.key === 'Enter' && handleAddGroup()}
+                                />
+                                <button onClick={handleAddGroup} className="btn-primary py-2 px-4 whitespace-nowrap text-sm">{dict.common.save}</button>
+                                <button onClick={() => { setIsAdding(false); setNewGroupName(''); }} className="btn-secondary py-2 px-4 whitespace-nowrap text-sm">{dict.common.cancel}</button>
                             </div>
-                        </div>
-                    ))}
+                        )}
+                    </div>
+
+                    {/* Groups Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                        {groupsList.map(g => {
+                            const count = customers.filter(c => c.group === g.key).length;
+                            return (
+                                <div key={g.key} className={`glass-card p-4 text-center relative overflow-hidden group hover:border-primary-500/30 transition-all`}>
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${g.color} opacity-50 group-hover:opacity-80 transition-opacity`} />
+                                    <div className="relative">
+                                        <span className="text-3xl block mb-2 transform group-hover:scale-110 transition-transform">{g.icon}</span>
+                                        <p className="font-bold text-sm mb-1 truncate px-1" style={{ color: 'var(--text-primary)' }} title={g.label}>{g.label}</p>
+                                        <span className="inline-block px-3 py-0.5 rounded-full text-xs font-bold bg-white/50 dark:bg-black/20 text-primary-600 dark:text-primary-400">
+                                            {count} {isRTL ? 'عميل' : 'customers'}
+                                        </span>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
         </div>

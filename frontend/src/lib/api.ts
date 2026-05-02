@@ -29,9 +29,15 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response?.status === 401) {
+        const isUnauthorized = error.response?.status === 401;
+        const isTenantMissing = error.response?.status === 400 && error.response?.data?.error === 'missing_tenant';
+        const isTenantNotFound = error.response?.status === 404 && error.response?.data?.error === 'tenant_not_found';
+        const isTenantSuspended = error.response?.status === 403 && (error.response?.data?.error === 'tenant_suspended' || error.response?.data?.error === 'trial_expired');
+
+        if (isUnauthorized || isTenantMissing || isTenantNotFound || isTenantSuspended) {
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('auth_token');
+                localStorage.removeItem('tenant_id');
                 // Detect current locale from URL path instead of hardcoding
                 const pathParts = window.location.pathname.split('/');
                 const locale = ['ar', 'en'].includes(pathParts[1]) ? pathParts[1] : 'ar';
@@ -277,6 +283,8 @@ export const reportsApi = {
 export const settingsApi = {
     getSettings: () => api.get('/settings'),
     updateSettings: (data: any) => api.put('/settings', data),
+    getCompanyInfo: () => api.get('/settings/company'),
+    updateCompanyInfo: (data: any) => api.put('/settings/company', data),
 };
 
 export const webhooksApi = {

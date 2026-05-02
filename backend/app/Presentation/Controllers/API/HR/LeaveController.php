@@ -18,13 +18,25 @@ class LeaveController extends BaseController
     {
         $validated = $request->validate([
             'employee_id' => 'required|exists:tenant.employees,id',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after_or_equal:start_date',
-            'type' => 'required|in:annual,sick,unpaid,other',
-            'reason' => 'required|string'
+            'start_date'  => 'required|date',
+            'end_date'    => 'required|date|after_or_equal:start_date',
+            'type'        => 'required|in:annual,sick,unpaid,other',
+            'reason'      => 'required|string'
         ]);
 
         $leave = LeaveModel::create($validated);
         return $this->success($leave, 'Leave applied successfully', 201);
+    }
+
+    public function updateStatus(Request $request, string $id)
+    {
+        $request->validate([
+            'status' => 'required|in:approved,rejected,pending',
+        ]);
+
+        $leave = LeaveModel::findOrFail($id);
+        $leave->update(['status' => $request->status]);
+
+        return $this->success($leave, 'Leave status updated successfully');
     }
 }

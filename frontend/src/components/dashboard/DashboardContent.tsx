@@ -142,7 +142,10 @@ export default function DashboardContent({ dict, locale }: DashboardContentProps
 
                 setTopProducts(kpis.top_products || []);
                 setTopCustomers(kpis.top_customers || []);
-                setDailySalesData(kpis.daily_sales || []);
+                setDailySalesData((kpis.daily_sales || []).map((d: any) => ({
+                    ...d,
+                    revenue: Number(d.revenue || 0)
+                })));
 
                 // Accounts distribution for pie chart
                 if (kpis.accounts_distribution) {
@@ -331,7 +334,7 @@ export default function DashboardContent({ dict, locale }: DashboardContentProps
                     </p>
                     <div className="flex-1 w-full min-h-[200px]">
                         <ResponsiveContainer width="100%" height="100%">
-                            <AreaChart data={dailySalesData}>
+                            <AreaChart data={dailySalesData} margin={{ top: 20, right: 10, left: 0, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
                                         <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />

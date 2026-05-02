@@ -23,7 +23,7 @@ class ProductController extends BaseController
 
     public function show(string $id): JsonResponse
     {
-        $product = $this->productRepository->findById($id);
+        $product = ProductModel::with(['warehouseStocks', 'units'])->find($id);
         return $product ? $this->success($product->toArray()) : $this->error('Product not found.', 404);
     }
 
@@ -52,18 +52,34 @@ class ProductController extends BaseController
             'sku' => 'required|string|unique:products,sku',
             'barcode' => 'nullable|string|unique:products,barcode',
             'name' => 'required|string',
+            'name_ar' => 'nullable|string',
             'description' => 'nullable|string',
             'selling_price' => 'required|numeric|min:0',
             'purchase_price' => 'nullable|numeric|min:0',
             'tax_rate' => 'nullable|numeric|min:0',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'units' => 'nullable|array',
+            'units.*.unit_name' => 'required|string',
+            'units.*.conversion_factor' => 'required|numeric|min:0.0001',
+            'units.*.barcode' => 'nullable|string',
+            'units.*.sell_price' => 'nullable|numeric|min:0',
         ]);
 
         $validated['id'] = Str::uuid()->toString();
         $validated['is_active'] = $validated['is_active'] ?? true;
+        if (!isset($validated['name_ar'])) $validated['name_ar'] = $validated['name'];
+        if (isset($validated['selling_price'])) $validated['sell_price'] = $validated['selling_price'];
+        if (isset($validated['purchase_price'])) $validated['cost_price'] = $validated['purchase_price'];
         
         $product = ProductModel::create($validated);
         
+        if (!empty($validated['units'])) {
+            foreach ($validated['units'] as $unit) {
+                $product->units()->create($unit);
+            }
+        }
+        
+        $product->load(['units', 'warehouseStocks']);
         return $this->success($product, 'Product created successfully', 201);
     }
 
@@ -79,15 +95,33 @@ class ProductController extends BaseController
             'sku' => 'sometimes|required|string|unique:products,sku,' . $id,
             'barcode' => 'nullable|string|unique:products,barcode,' . $id,
             'name' => 'sometimes|required|string',
+            'name_ar' => 'nullable|string',
             'description' => 'nullable|string',
             'selling_price' => 'sometimes|required|numeric|min:0',
             'purchase_price' => 'nullable|numeric|min:0',
             'tax_rate' => 'nullable|numeric|min:0',
-            'is_active' => 'boolean'
+            'is_active' => 'boolean',
+            'units' => 'nullable|array',
+            'units.*.id' => 'nullable|string',
+            'units.*.unit_name' => 'required|string',
+            'units.*.conversion_factor' => 'required|numeric|min:0.0001',
+            'units.*.barcode' => 'nullable|string',
+            'units.*.sell_price' => 'nullable|numeric|min:0',
         ]);
+
+        if (isset($validated['selling_price'])) $validated['sell_price'] = $validated['selling_price'];
+        if (isset($validated['purchase_price'])) $validated['cost_price'] = $validated['purchase_price'];
 
         $product->update($validated);
         
+        if (isset($validated['units'])) {
+            $product->units()->delete(); // Simple replace
+            foreach ($validated['units'] as $unit) {
+                $product->units()->create($unit);
+            }
+        }
+        
+        $product->load(['units', 'warehouseStocks']);
         return $this->success($product, 'Product updated successfully');
     }
 

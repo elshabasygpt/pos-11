@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { DeleteConfirmModal, ViewAccountModal, CustomerGroupsModal, ImportCustomersModal } from './CustomerModals';
 import { exportTableToPDF } from '@/lib/pdf-export';
+import { crmApi } from '@/lib/api';
 
 // ── Types ──
 interface Customer {
@@ -34,7 +35,8 @@ export default function CustomersContent({ dict, locale }: Props) {
     const c = dict.customers;
 
     // ── State ──
-    const [customers, setCustomers] = useState<Customer[]>(initialCustomers);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [groupFilter, setGroupFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
@@ -47,6 +49,48 @@ export default function CustomersContent({ dict, locale }: Props) {
     const [showGroups, setShowGroups] = useState(false);
     const [showImport, setShowImport] = useState(false);
     const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+
+    // ── Fetch data ──
+    const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+        setToast({ msg, type });
+        setTimeout(() => setToast(null), 3500);
+    };
+
+    const fetchCustomers = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await crmApi.getCustomers();
+            const apiCustomers = res.data?.data?.data || res.data?.data || [];
+            const formatted = apiCustomers.map((c: any) => ({
+                id: c.id?.toString() || c.customer_code,
+                name: c.name || '',
+                nameAr: c.name_ar || c.name || '',
+                phone: c.phone || '',
+                email: c.email || '',
+                address: c.address || '',
+                group: c.group || 'retail',
+                paymentType: c.payment_type || 'cash',
+                status: c.status || 'active',
+                totalPurchases: Number(c.total_purchases || 0),
+                balance: Number(c.balance || 0),
+                creditLimit: Number(c.credit_limit || 0),
+                paymentTerms: Number(c.payment_terms || 0),
+                lastOrder: c.last_order || '-',
+                orders: Number(c.orders_count || 0),
+                taxNumber: c.tax_number || '',
+                commercialRegister: c.commercial_register || ''
+            }));
+            setCustomers(formatted);
+        } catch (error) {
+            console.error('Failed fetching customers:', error);
+            showToast(isRTL ? 'فشل تحميل بيانات العملاء' : 'Failed to load customers', 'error');
+        }
+        setLoading(false);
+    }, [isRTL]);
+
+    useEffect(() => { fetchCustomers(); }, [fetchCustomers]);
 
     // Form
     const emptyForm = { name: '', nameAr: '', phone: '', email: '', address: '', group: 'retail', paymentType: 'cash' as 'cash' | 'credit', creditLimit: 0, paymentTerms: 0, taxNumber: '', commercialRegister: '' };
@@ -73,21 +117,51 @@ export default function CustomersContent({ dict, locale }: Props) {
         setShowAddEdit(true);
     };
 
-    const saveCustomer = useCallback(() => {
+    const saveCustomer = useCallback(async () => {
         if (!form.name && !form.nameAr) return;
-        if (editingCustomer) {
-            setCustomers(prev => prev.map(cu => cu.id === editingCustomer.id ? { ...cu, name: form.name || cu.name, nameAr: form.nameAr || cu.nameAr, phone: form.phone, email: form.email, address: form.address, group: form.group, paymentType: form.paymentType, creditLimit: form.paymentType === 'credit' ? form.creditLimit : 0, paymentTerms: form.paymentType === 'credit' ? form.paymentTerms : 0, taxNumber: form.taxNumber, commercialRegister: form.commercialRegister } : cu));
-        } else {
-            const newId = `C-${String(customers.length + 1).padStart(3, '0')}`;
-            const newCust: Customer = { id: newId, name: form.name || form.nameAr, nameAr: form.nameAr || form.name, phone: form.phone, email: form.email, address: form.address, group: form.group, paymentType: form.paymentType, status: 'active', totalPurchases: 0, balance: 0, creditLimit: form.paymentType === 'credit' ? form.creditLimit : 0, paymentTerms: form.paymentType === 'credit' ? form.paymentTerms : 0, lastOrder: '-', orders: 0, taxNumber: form.taxNumber, commercialRegister: form.commercialRegister };
-            setCustomers(prev => [newCust, ...prev]);
+        setSaving(true);
+        const payload = {
+            name: form.name || form.nameAr,
+            name_ar: form.nameAr || form.name,
+            phone: form.phone,
+            email: form.email,
+            address: form.address,
+            group: form.group,
+            payment_type: form.paymentType,
+            credit_limit: form.paymentType === 'credit' ? form.creditLimit : 0,
+            payment_terms: form.paymentType === 'credit' ? form.paymentTerms : 0,
+            tax_number: form.taxNumber,
+            commercial_register: form.commercialRegister,
+        };
+        try {
+            if (editingCustomer) {
+                await crmApi.updateCustomer(editingCustomer.id, payload);
+                showToast(isRTL ? 'تم تحديث بيانات العميل بنجاح ✓' : 'Customer updated successfully ✓');
+            } else {
+                await crmApi.createCustomer(payload);
+                showToast(isRTL ? 'تم إضافة العميل بنجاح ✓' : 'Customer added successfully ✓');
+            }
+            setShowAddEdit(false);
+            fetchCustomers();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || (isRTL ? 'فشل الحفظ، تحقق من البيانات' : 'Save failed, check inputs'), 'error');
+        } finally {
+            setSaving(false);
         }
-        setShowAddEdit(false);
-    }, [form, editingCustomer, customers.length]);
+    }, [form, editingCustomer, isRTL, fetchCustomers]);
 
-    const deleteCustomer = useCallback(() => {
-        if (showDelete) { setCustomers(prev => prev.filter(cu => cu.id !== showDelete.id)); setShowDelete(null); }
-    }, [showDelete]);
+    const deleteCustomer = useCallback(async () => {
+        if (!showDelete) return;
+        try {
+            await crmApi.deleteCustomer(showDelete.id);
+            showToast(isRTL ? 'تم حذف العميل بنجاح' : 'Customer deleted', 'success');
+            setShowDelete(null);
+            fetchCustomers();
+        } catch (err: any) {
+            showToast(err?.response?.data?.message || (isRTL ? 'فشل الحذف' : 'Delete failed'), 'error');
+            setShowDelete(null);
+        }
+    }, [showDelete, isRTL, fetchCustomers]);
 
     // ── Export CSV ──
     const exportCSV = useCallback(async () => {
@@ -161,53 +235,62 @@ export default function CustomersContent({ dict, locale }: Props) {
     ];
 
     const actionBtns = [
-        { key: 'add', label: c.addCustomer, icon: '➕', gradient: 'from-green-500/15 to-emerald-600/5', border: 'border-green-500/20 hover:border-green-400/40' },
-        { key: 'import', label: c.importCustomers, icon: '📥', gradient: 'from-blue-500/15 to-cyan-600/5', border: 'border-blue-500/20 hover:border-blue-400/40' },
-        { key: 'export', label: c.exportCustomers, icon: '📤', gradient: 'from-purple-500/15 to-violet-600/5', border: 'border-purple-500/20 hover:border-purple-400/40' },
-        { key: 'report', label: c.customerReport, icon: '📊', gradient: 'from-yellow-500/15 to-amber-600/5', border: 'border-yellow-500/20 hover:border-yellow-400/40' },
-        { key: 'groups', label: c.customerGroups, icon: '🏷️', gradient: 'from-orange-500/15 to-red-600/5', border: 'border-orange-500/20 hover:border-orange-400/40' },
+        { key: 'import', label: c.importCustomers, icon: '📥' },
+        { key: 'export', label: c.exportCustomers, icon: '📤' },
+        { key: 'report', label: c.customerReport, icon: '📊' },
+        { key: 'groups', label: c.customerGroups, icon: '🏷️' },
     ];
 
     const chartData = [...customers].sort((a, b) => b.totalPurchases - a.totalPurchases).slice(0, 5).map(cu => ({ name: isRTL ? cu.nameAr : cu.name, value: cu.totalPurchases }));
     const lblCls = "block text-xs font-medium mb-1.5 uppercase tracking-wider";
 
     return (
-        <div className="space-y-6 animate-fade-in">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{c.title}</h1>
-                    <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{c.subtitle}</p>
+        <div className="space-y-6 animate-fade-in p-4 sm:p-6">
+            {/* Toast */}
+            {toast && (
+                <div className={`fixed bottom-6 ${isRTL ? 'left-6' : 'right-6'} z-[200] px-5 py-3 rounded-2xl shadow-2xl text-white text-sm font-bold flex items-center gap-2 animate-scale-in ${toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                    {toast.type === 'success' ? '✅' : '❌'} {toast.msg}
                 </div>
-                <button onClick={openAdd} className="btn-primary flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
-                    {c.addCustomer}
-                </button>
-            </div>
-
-            {/* Actions */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                {actionBtns.map(a => (
-                    <button key={a.key} onClick={() => handleAction(a.key)} className={`relative overflow-hidden flex items-center gap-2.5 p-3.5 rounded-xl border ${a.border} transition-all duration-300 group cursor-pointer`} style={{ background: 'var(--bg-input)' }}>
-                        <div className={`absolute inset-0 bg-gradient-to-br ${a.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-                        <span className="relative text-lg group-hover:scale-110 transition-transform duration-300">{a.icon}</span>
-                        <span className="relative text-xs font-medium leading-tight" style={{ color: 'var(--text-secondary)' }}>{a.label}</span>
+            )}
+            {/* Header */}
+            <div className="glass-card p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-l-4 border-l-primary-500">
+                <div>
+                    <h1 className="text-2xl font-bold flex items-center gap-3" style={{ color: 'var(--text-primary)' }}>
+                        <div className="p-2 bg-primary-100 dark:bg-primary-900/30 text-primary-600 rounded-lg">
+                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                        </div>
+                        {c.title}
+                    </h1>
+                    <p className="text-sm mt-2" style={{ color: 'var(--text-muted)' }}>{c.subtitle}</p>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-3">
+                    {actionBtns.map(a => (
+                        <button key={a.key} onClick={() => handleAction(a.key)} className="btn-secondary flex items-center gap-2 px-3 py-2 text-xs" title={a.label}>
+                            <span>{a.icon}</span> <span className="hidden sm:inline">{a.label}</span>
+                        </button>
+                    ))}
+                    <button onClick={openAdd} className="btn-primary flex items-center gap-2 shadow-lg shadow-primary-500/30 text-xs py-2.5">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                        {c.addCustomer}
                     </button>
-                ))}
+                </div>
             </div>
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
                 {stats.map((s, i) => (
-                    <div key={i} className="stat-card relative overflow-hidden">
-                        <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${s.gradient} opacity-50`} />
-                        <div className="relative flex items-start justify-between">
+                    <div key={i} className="stat-card relative overflow-hidden group">
+                        <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${s.gradient} opacity-50 transition-opacity group-hover:opacity-100`} />
+                        <div className="relative flex items-start justify-between p-2">
                             <div>
-                                <p className="text-sm mb-1" style={{ color: 'var(--text-secondary)' }}>{s.label}</p>
-                                <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{s.value}</p>
-                                <p className={`text-xs mt-2 ${s.positive ? 'text-green-500' : 'text-red-500'}`}>{s.change} {isRTL ? 'مقارنة بالشهر الماضي' : 'vs last month'}</p>
+                                <p className="text-sm font-medium mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{s.label}</p>
+                                <p className="text-3xl font-black" style={{ color: 'var(--text-primary)' }}>{s.value}</p>
+                                <p className={`text-xs mt-2 font-medium ${s.positive ? 'text-emerald-500' : 'text-red-500'}`}>{s.change} {isRTL ? 'مقارنة بالشهر الماضي' : 'vs last month'}</p>
                             </div>
-                            <span className="text-3xl opacity-80">{s.icon}</span>
+                            <span className="text-4xl opacity-80 group-hover:scale-110 transition-transform">{s.icon}</span>
                         </div>
                     </div>
                 ))}
@@ -280,17 +363,22 @@ export default function CustomersContent({ dict, locale }: Props) {
 
             {/* ── Add/Edit Modal ── */}
             {showAddEdit && (
-                <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowAddEdit(false)}>
-                    <div className="modal-content !max-w-2xl">
-                        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-default)' }}>
-                            <div className="flex items-center gap-2"><span className="text-xl">{editingCustomer ? '✏️' : '➕'}</span><h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{editingCustomer ? c.editCustomer : c.addCustomer}</h2></div>
-                            <button onClick={() => setShowAddEdit(false)} className="btn-icon"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={e => e.target === e.currentTarget && setShowAddEdit(false)}>
+                    <div className="bg-white dark:bg-surface-900 rounded-2xl w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl animate-scale-in">
+                        <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-md z-10" style={{ borderColor: 'var(--border-default)' }}>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xl">{editingCustomer ? '✏️' : '➕'}</span>
+                                <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{editingCustomer ? c.editCustomer : c.addCustomer}</h2>
+                            </div>
+                            <button onClick={() => setShowAddEdit(false)} className="btn-icon">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </div>
                         <div className="p-5 space-y-5">
                             <div><h3 className="text-sm font-semibold mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}><span className="w-1.5 h-1.5 rounded-full bg-primary-500" />{c.basicInfo}</h3>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{c.customerName} (EN)</label><input className="input-field py-2 text-sm" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{c.customerName} (AR)</label><input className="input-field py-2 text-sm" value={form.nameAr} onChange={e => setForm({ ...form, nameAr: e.target.value })} /></div>
+                                    <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{c.customerName} (EN)</label><input className="input-field py-2 text-sm" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} dir="ltr" /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{c.phone}</label><input className="input-field py-2 text-sm" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{c.email}</label><input className="input-field py-2 text-sm" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
                                     <div><label className={lblCls} style={{ color: 'var(--text-muted)' }}>{c.address}</label><input className="input-field py-2 text-sm" value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} /></div>
@@ -313,16 +401,19 @@ export default function CustomersContent({ dict, locale }: Props) {
                                 </div>
                             </div>
                         </div>
-                        <div className="flex items-center justify-end gap-3 p-5 border-t" style={{ borderColor: 'var(--border-default)' }}>
+                        <div className="flex items-center justify-end gap-3 p-5 border-t sticky bottom-0 bg-white/80 dark:bg-surface-900/80 backdrop-blur-md" style={{ borderColor: 'var(--border-default)' }}>
                             <button onClick={() => setShowAddEdit(false)} className="btn-secondary">{dict.common.cancel}</button>
-                            <button onClick={saveCustomer} className="btn-primary">{dict.common.save}</button>
+                            <button onClick={saveCustomer} disabled={saving} className="btn-primary shadow-lg shadow-primary-500/30 flex items-center gap-2 disabled:opacity-70">
+                                {saving ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block"/> : null}
+                                {saving ? (isRTL ? 'جاري الحفظ...' : 'Saving...') : dict.common.save}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
             {/* Other Modals */}
-            {showDelete && <DeleteConfirmModal dict={dict} customerName={isRTL ? showDelete.nameAr : showDelete.name} onConfirm={deleteCustomer} onCancel={() => setShowDelete(null)} />}
+            {showDelete && <DeleteConfirmModal dict={dict} customerName={isRTL ? showDelete?.nameAr : showDelete?.name} onConfirm={deleteCustomer} onCancel={() => setShowDelete(null)} />}
             {showAccount && <ViewAccountModal dict={dict} locale={locale} customer={showAccount} onClose={() => setShowAccount(null)} formatCurrency={formatCurrency} />}
             {showGroups && <CustomerGroupsModal dict={dict} locale={locale} customers={customers} onClose={() => setShowGroups(false)} />}
             {showImport && <ImportCustomersModal dict={dict} locale={locale} onClose={() => setShowImport(false)} />}

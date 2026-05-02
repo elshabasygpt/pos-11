@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { ManageGroupsModal, ManageUnitsModal, PrintBarcodeModal, StockMovementsModal, InventoryAdjustmentModal, AssembleProductModal } from './InventoryModals';
 import type { MainGroup, Unit } from './InventoryModals';
 
@@ -44,7 +44,7 @@ export default function InventoryContent({ dict, locale }: Props) {
     const isRTL = locale === 'ar';
     const inv = dict.inventory;
 
-    const [products, setProducts] = useState<Product[]>(initialProducts);
+    const [products, setProducts] = useState<Product[]>([]);
     const [groups, setGroups] = useState<MainGroup[]>(defaultGroups);
     const [units, setUnits] = useState<Unit[]>(defaultUnits);
     const [search, setSearch] = useState('');
@@ -61,6 +61,44 @@ export default function InventoryContent({ dict, locale }: Props) {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [showAdjustment, setShowAdjustment] = useState(false);
     const [showAssembly, setShowAssembly] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const { inventoryApi } = await import('@/lib/api');
+                const res = await inventoryApi.getProducts({ limit: 100 });
+                if (res.data?.data) {
+                    // Map API products to UI Product interface
+                    const mapped = res.data.data.map((p: any) => ({
+                        id: p.id,
+                        code: p.sku || p.id.substring(0,6),
+                        name: p.name,
+                        nameAr: p.name_ar || p.name,
+                        barcode: p.barcode || '',
+                        mainGroupId: p.category_id || 'MG-1',
+                        subGroupId: '',
+                        unitId: p.unit_of_measure || 'U-1',
+                        costPrice: parseFloat(p.cost_price || 0),
+                        sellPrice: parseFloat(p.sell_price || 0),
+                        wholesalePrice: parseFloat(p.sell_price || 0) * 0.9,
+                        semiWholesalePrice: parseFloat(p.sell_price || 0) * 0.95,
+                        profitPercent: 0,
+                        discount: 0,
+                        stock: p.warehouseStocks?.reduce((acc: number, ws: any) => acc + parseFloat(ws.quantity), 0) || 0,
+                        minStock: p.stock_alert_level || 5,
+                        description: p.description || ''
+                    }));
+                    setProducts(mapped);
+                }
+            } catch (err) {
+                console.error("Failed to load products", err);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchProducts();
+    }, []);
 
     const emptyForm = { code: '', name: '', nameAr: '', barcode: '', mainGroupId: '', subGroupId: '', unitId: '', costPrice: 0, sellPrice: 0, wholesalePrice: 0, semiWholesalePrice: 0, profitPercent: 0, discount: 0, minStock: 5, description: '' };
     const [form, setForm] = useState(emptyForm);
@@ -133,12 +171,12 @@ export default function InventoryContent({ dict, locale }: Props) {
     ];
 
     const actionBtns = [
-        { key: 'add', label: inv.addProduct, icon: '➕', action: openAdd, border: 'border-green-500/20 hover:border-green-400/40', gradient: 'from-green-500/15 to-emerald-600/5' },
-        { key: 'groups', label: inv.manageGroups, icon: '📁', action: () => setShowGroups(true), border: 'border-blue-500/20 hover:border-blue-400/40', gradient: 'from-blue-500/15 to-cyan-600/5' },
-        { key: 'units', label: inv.manageUnits, icon: '📏', action: () => setShowUnits(true), border: 'border-purple-500/20 hover:border-purple-400/40', gradient: 'from-purple-500/15 to-violet-600/5' },
-        { key: 'export', label: inv.exportProducts, icon: '📤', action: exportCSV, border: 'border-yellow-500/20 hover:border-yellow-400/40', gradient: 'from-yellow-500/15 to-amber-600/5' },
-        { key: 'adjustment', label: isRTL ? 'تسوية وهالك' : 'Adjustment', icon: '⚖️', action: () => setShowAdjustment(true), border: 'border-rose-500/20 hover:border-rose-400/40', gradient: 'from-rose-500/15 to-red-600/5' },
-        { key: 'assembly', label: isRTL ? 'التجميع بـ (BOM)' : 'Assembly', icon: '⚙️', action: () => setShowAssembly(true), border: 'border-indigo-500/20 hover:border-indigo-400/40', gradient: 'from-indigo-500/15 to-blue-600/5' },
+        { key: 'add', label: inv.addProduct, icon: '➕', action: openAdd, color: 'text-emerald-500', bg: 'bg-emerald-50 dark:bg-emerald-500/10', border: 'border-emerald-200 dark:border-emerald-500/20' },
+        { key: 'groups', label: inv.manageGroups, icon: '📁', action: () => setShowGroups(true), color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10', border: 'border-blue-200 dark:border-blue-500/20' },
+        { key: 'units', label: inv.manageUnits, icon: '📏', action: () => setShowUnits(true), color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-500/10', border: 'border-purple-200 dark:border-purple-500/20' },
+        { key: 'export', label: inv.exportProducts, icon: '📤', action: exportCSV, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10', border: 'border-amber-200 dark:border-amber-500/20' },
+        { key: 'adjustment', label: isRTL ? 'تسوية وهالك' : 'Adjustment', icon: '⚖️', action: () => setShowAdjustment(true), color: 'text-rose-500', bg: 'bg-rose-50 dark:bg-rose-500/10', border: 'border-rose-200 dark:border-rose-500/20' },
+        { key: 'assembly', label: isRTL ? 'التجميع بـ (BOM)' : 'Assembly', icon: '⚙️', action: () => setShowAssembly(true), color: 'text-indigo-500', bg: 'bg-indigo-50 dark:bg-indigo-500/10', border: 'border-indigo-200 dark:border-indigo-500/20' },
     ];
 
     const lblCls = "block text-xs font-medium mb-1.5 uppercase tracking-wider";
@@ -161,12 +199,11 @@ export default function InventoryContent({ dict, locale }: Props) {
             </div>
 
             {/* Actions */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="flex flex-wrap items-center gap-3">
                 {actionBtns.map(a => (
-                    <button key={a.key} onClick={a.action} className={`relative overflow-hidden flex items-center gap-2.5 p-3.5 rounded-xl border ${a.border} transition-all duration-300 group cursor-pointer`} style={{ background: 'var(--bg-input)' }}>
-                        <div className={`absolute inset-0 bg-gradient-to-br ${a.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
-                        <span className="relative text-lg group-hover:scale-110 transition-transform duration-300">{a.icon}</span>
-                        <span className="relative text-xs font-medium leading-tight" style={{ color: 'var(--text-secondary)' }}>{a.label}</span>
+                    <button key={a.key} onClick={a.action} className={`flex-1 sm:flex-none flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl border transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg ${a.bg} ${a.border} ${a.color} hover:brightness-95 dark:hover:brightness-110`}>
+                        <span className="text-lg">{a.icon}</span>
+                        <span className="text-sm font-bold">{a.label}</span>
                     </button>
                 ))}
             </div>
@@ -175,13 +212,13 @@ export default function InventoryContent({ dict, locale }: Props) {
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {stats.map((s, i) => (
                     <div key={i} className="stat-card relative overflow-hidden">
-                        <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${s.gradient} opacity-50`} />
+                        <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${s.gradient} opacity-40 transition-opacity duration-300 hover:opacity-70`} />
                         <div className="relative flex items-start justify-between">
                             <div>
-                                <p className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>{s.label}</p>
-                                <p className={`text-xl font-bold ${s.accent}`}>{s.value}</p>
+                                <p className="text-xs font-semibold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>{s.label}</p>
+                                <p className={`text-2xl font-black ${s.accent}`}>{s.value}</p>
                             </div>
-                            <span className="text-2xl opacity-80">{s.icon}</span>
+                            <span className="text-3xl opacity-90 drop-shadow-sm">{s.icon}</span>
                         </div>
                     </div>
                 ))}
@@ -189,16 +226,16 @@ export default function InventoryContent({ dict, locale }: Props) {
 
             {/* Low Stock Alert Banner */}
             {lowStockProducts.length > 0 && (
-                <div className="glass-card p-4 border-s-4" style={{ borderColor: '#f59e0b' }}>
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-lg">⚠️</span>
-                        <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{inv.lowStockItems} ({lowStockProducts.length})</h3>
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 animate-fade-in shadow-sm">
+                    <div className="flex items-center gap-2 mb-3 text-amber-700 dark:text-amber-400">
+                        <span className="text-xl">⚠️</span>
+                        <h3 className="text-sm font-bold">{inv.lowStockItems} ({lowStockProducts.length})</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {lowStockProducts.map(p => (
-                            <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.2)' }}>
-                                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{isRTL ? p.nameAr : p.name}</span>
-                                <span className="font-bold text-yellow-500">{p.stock}/{p.minStock}</span>
+                            <div key={p.id} className="flex items-center gap-2 px-3 py-1 rounded-lg text-xs bg-white dark:bg-surface-800 border border-amber-100 dark:border-amber-900 shadow-sm">
+                                <span className="font-semibold text-surface-700 dark:text-surface-200">{isRTL ? p.nameAr : p.name}</span>
+                                <span className="font-black text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.5 rounded">{p.stock} / {p.minStock}</span>
                             </div>
                         ))}
                     </div>
@@ -207,16 +244,16 @@ export default function InventoryContent({ dict, locale }: Props) {
 
             {/* Out of Stock Alert */}
             {outOfStockCount > 0 && (
-                <div className="glass-card p-4 border-s-4" style={{ borderColor: '#ef4444' }}>
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-lg">🚫</span>
-                        <h3 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>{inv.outOfStock} ({outOfStockCount})</h3>
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4 animate-fade-in shadow-sm">
+                    <div className="flex items-center gap-2 mb-3 text-red-700 dark:text-red-400">
+                        <span className="text-xl">🚫</span>
+                        <h3 className="text-sm font-bold">{inv.outOfStock} ({outOfStockCount})</h3>
                     </div>
                     <div className="flex flex-wrap gap-2">
                         {products.filter(p => p.stock === 0).map(p => (
-                            <div key={p.id} className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs" style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-                                <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{isRTL ? p.nameAr : p.name}</span>
-                                <span className="font-bold text-red-500">0</span>
+                            <div key={p.id} className="flex items-center gap-2 px-3 py-1 rounded-lg text-xs bg-white dark:bg-surface-800 border border-red-100 dark:border-red-900 shadow-sm">
+                                <span className="font-semibold text-surface-700 dark:text-surface-200">{isRTL ? p.nameAr : p.name}</span>
+                                <span className="font-black text-red-600 dark:text-red-400 bg-red-100 dark:bg-red-900/50 px-1.5 py-0.5 rounded">0</span>
                             </div>
                         ))}
                     </div>
@@ -267,31 +304,31 @@ export default function InventoryContent({ dict, locale }: Props) {
                                     const status = stockStatus(p);
                                     return (
                                         <tr key={p.id} className={status === 'out' ? 'opacity-60' : ''}>
-                                            <td className="font-mono text-primary-400 font-medium">{p.code}</td>
+                                            <td className="font-mono text-primary-600 dark:text-primary-400 font-bold">{p.code}</td>
                                             <td>
-                                                <div style={{ color: 'var(--text-primary)' }} className="font-medium">{isRTL ? p.nameAr : p.name}</div>
-                                                {p.discount > 0 && <span className="badge badge-danger text-[10px] ms-1">-{p.discount}%</span>}
+                                                <div className="font-bold text-surface-900 dark:text-surface-100">{isRTL ? p.nameAr : p.name}</div>
+                                                {p.discount > 0 && <span className="inline-block mt-1 px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px] font-bold border border-red-200 dark:border-red-800/50">-{p.discount}%</span>}
                                             </td>
                                             <td>
-                                                <span className="badge badge-info">{getGroupName(p.mainGroupId)}</span>
-                                                <br /><span className="text-[10px]" style={{ color: 'var(--text-muted)' }}>{getSubGroupName(p.mainGroupId, p.subGroupId)}</span>
+                                                <span className="px-2 py-1 rounded-md bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 text-xs font-semibold border border-blue-100 dark:border-blue-800">{getGroupName(p.mainGroupId)}</span>
+                                                <div className="text-[10px] text-surface-500 mt-1 font-medium">{getSubGroupName(p.mainGroupId, p.subGroupId)}</div>
                                             </td>
-                                            <td><span className="badge badge-success">{getUnitSymbol(p.unitId)}</span></td>
-                                            <td style={{ color: 'var(--text-secondary)' }}>{formatCurrency(p.costPrice)}</td>
-                                            <td style={{ color: 'var(--text-primary)' }} className="font-medium">{formatCurrency(p.sellPrice)}</td>
-                                            <td style={{ color: 'var(--text-secondary)' }}>{formatCurrency(p.wholesalePrice)}</td>
+                                            <td><span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 text-xs font-semibold border border-emerald-100 dark:border-emerald-800">{getUnitSymbol(p.unitId)}</span></td>
+                                            <td className="text-surface-500 font-medium">{formatCurrency(p.costPrice)}</td>
+                                            <td className="font-bold text-primary-600 dark:text-primary-400">{formatCurrency(p.sellPrice)}</td>
+                                            <td className="text-surface-500 font-medium">{formatCurrency(p.wholesalePrice)}</td>
                                             <td>
-                                                <span className={`badge ${status === 'out' ? 'badge-danger' : status === 'low' ? 'badge-warning' : 'badge-success'}`}>
+                                                <span className={`inline-flex items-center justify-center min-w-[2rem] px-2 py-1 rounded-full text-xs font-bold border ${status === 'out' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' : status === 'low' ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' : 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'}`}>
                                                     {p.stock}
                                                 </span>
                                             </td>
-                                            <td style={{ color: 'var(--text-muted)' }}>{p.minStock}</td>
-                                            <td>
-                                                <div className="flex items-center gap-1">
-                                                    <button onClick={() => setShowMovements(p)} className="btn-icon text-xs" style={{ color: 'var(--text-muted)' }} title={inv.stockMovements}>📊</button>
-                                                    <button onClick={() => setShowBarcode(p)} className="btn-icon text-xs" style={{ color: 'var(--text-muted)' }} title={inv.printBarcode}>🏷️</button>
-                                                    <button onClick={() => openEdit(p)} className="btn-icon text-xs" style={{ color: 'var(--text-muted)' }}><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" /></svg></button>
-                                                    <button onClick={() => setShowDelete(p)} className="btn-icon text-xs hover:!text-red-400" style={{ color: 'var(--text-muted)' }}><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
+                                            <td className="text-surface-500 font-medium text-center">{p.minStock}</td>
+                                            <td className="text-center">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <button onClick={() => setShowMovements(p)} className="btn-icon w-7 h-7 flex items-center justify-center text-indigo-500 hover:text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50" title={inv.stockMovements}><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13h2.243a2 2 0 011.897 1.368l1.371 4.113a1 1 0 001.897 0l3.184-9.551a1 1 0 011.897 0l1.371 4.113A2 2 0 0018.757 15H21" /></svg></button>
+                                                    <button onClick={() => setShowBarcode(p)} className="btn-icon w-7 h-7 flex items-center justify-center text-teal-500 hover:text-teal-600 bg-teal-50 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800/50" title={inv.printBarcode}><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg></button>
+                                                    <button onClick={() => openEdit(p)} className="btn-icon w-7 h-7 flex items-center justify-center text-primary-500 hover:text-primary-600 bg-primary-50 dark:bg-primary-900/20 border border-primary-100 dark:border-primary-800/50" title="Edit"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></button>
+                                                    <button onClick={() => setShowDelete(p)} className="btn-icon w-7 h-7 flex items-center justify-center text-red-500 hover:text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50" title="Delete"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg></button>
                                                 </div>
                                             </td>
                                         </tr>
